@@ -1,7 +1,33 @@
 import { api } from '@/services/api-client';
-import type { AccurateMaster, AccurateStatus, DeliveredInvoice } from '../types/accurate';
+import type {
+  AccurateMaster,
+  AccurateStatus,
+  DeliveredInvoice,
+  CustomerPreparation,
+} from '../types/accurate';
 export const getAccurateStatus = () => api<AccurateStatus>('/accurate/status');
 export const getDeliveredInvoices = () => api<DeliveredInvoice[]>('/accurate/delivered-invoices');
+export function prepareAccurateCustomer(batchId: string, rowId: string, version: number) {
+  return api<CustomerPreparation>(
+    `/accurate/imports/${batchId}/rows/${rowId}/customer/prepare?version=${version}`,
+  );
+}
+export function createAccurateCustomer(
+  batchId: string,
+  rowId: string,
+  input: {
+    requestId: string;
+    version: number;
+    databaseId: string;
+    customerNo: string;
+    name: string;
+  },
+) {
+  return api<AccurateMaster>(`/accurate/imports/${batchId}/rows/${rowId}/customer`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
 export function searchAccurateMasters(
   kind: 'customer' | 'item' | 'branch',
   search: string,

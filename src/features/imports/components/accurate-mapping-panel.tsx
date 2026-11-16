@@ -7,6 +7,7 @@ import { money, unitMoney } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { chargeableItems } from '../utils/redemption';
+import { CreateAccurateCustomer } from '@/features/invoices/components/create-accurate-customer';
 export function AccurateMappingPanel({
   batch,
   row,
@@ -87,6 +88,23 @@ export function AccurateMappingPanel({
               selected={valid ? selection?.customer : undefined}
               disabled={busy}
               onSelect={(id) => save('customer', id)}
+              emptyAction={
+                onConfigure
+                  ? (finish) => (
+                      <CreateAccurateCustomer
+                        batchId={batch.id}
+                        rowId={row.id}
+                        version={batch.version}
+                        initialName={row.candidate.customer}
+                        disabled={busy}
+                        onSelect={async (id) => {
+                          await save('customer', id);
+                          finish();
+                        }}
+                      />
+                    )
+                  : undefined
+              }
             />
             {chargeableItems(row.candidate.items).map((item) => (
               <AccurateMasterPicker
