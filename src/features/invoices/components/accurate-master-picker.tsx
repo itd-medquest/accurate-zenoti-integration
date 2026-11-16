@@ -1,5 +1,5 @@
 'use client';
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel, FieldTitle, FieldDescription } from '@/components/ui/field';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ export function AccurateMasterPicker({
   selected,
   disabled,
   onSelect,
+  emptyAction,
 }: {
   kind: 'customer' | 'item' | 'branch';
   label: string;
@@ -23,6 +24,7 @@ export function AccurateMasterPicker({
   selected?: { code: string; name: string; unitName?: string };
   disabled?: boolean;
   onSelect: (id: string) => Promise<void>;
+  emptyAction?: (onSaved: () => void) => ReactNode;
 }) {
   const id = useId();
   const [search, setSearch] = useState(initialSearch);
@@ -151,49 +153,61 @@ export function AccurateMasterPicker({
                   </SelectFieldOption>
                 ))}
               </SelectField>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy || disabled || page === 1}
-                  onClick={() => find(page - 1)}
-                >
-                  Sebelumnya
-                </Button>
-                <span className="text-xs text-muted-foreground">Halaman {page}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy || disabled || results.length < 20}
-                  onClick={() => find(page + 1)}
-                >
-                  Berikutnya
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="ml-auto"
-                  disabled={!choice || busy || disabled}
-                  onClick={async () => {
-                    setBusy(true);
-                    setError('');
-                    try {
-                      await onSelect(choice);
-                      setResults(null);
-                      setChoice('');
-                      setEditing(false);
-                    } catch (error) {
-                      setError(error instanceof Error ? error.message : 'Mapping gagal disimpan.');
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  Simpan pilihan
-                </Button>
-              </div>
+              {results.length === 0 &&
+                page === 1 &&
+                emptyAction?.(() => {
+                  setEditing(false);
+                  setResults(null);
+                  setChoice('');
+                  setError('');
+                })}
+              {(results.length > 0 || page > 1) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy || disabled || page === 1}
+                    onClick={() => find(page - 1)}
+                  >
+                    Sebelumnya
+                  </Button>
+                  <span className="text-xs text-muted-foreground">Halaman {page}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy || disabled || results.length < 20}
+                    onClick={() => find(page + 1)}
+                  >
+                    Berikutnya
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="ml-auto"
+                    disabled={!choice || busy || disabled}
+                    onClick={async () => {
+                      setBusy(true);
+                      setError('');
+                      try {
+                        await onSelect(choice);
+                        setResults(null);
+                        setChoice('');
+                        setEditing(false);
+                      } catch (error) {
+                        setError(
+                          error instanceof Error ? error.message : 'Mapping gagal disimpan.',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Simpan pilihan
+                  </Button>
+                </div>
+              )}
             </>
           )}
           <FieldDescription id={`${id}-help`}>

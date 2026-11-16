@@ -1,4 +1,20 @@
 export type AccurateMaster = { id: string; code: string; name: string; unitName: string };
+export type CustomerPreparation = {
+  requestId: string;
+  databaseId: string;
+  databaseName: string;
+  customerNo: string;
+  defaults: {
+    categoryName: string;
+    branchId: number;
+    branchName: string;
+    currencyCode: string;
+    currencyName: string;
+    priceCategoryName: string;
+    discountCategoryName: string;
+    termName: string;
+  };
+};
 export type AccurateDestination = {
   branchId: string;
   databaseId: string;
