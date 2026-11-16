@@ -1,0 +1,84 @@
+/* The workspace pairs the login blue with the owner's #ffde59 yellow. Static layers
+   create depth without animated gradients or full-screen backdrop filters. */
+@layer utilities {
+  .app-shell {
+    @apply relative isolate mx-3 mt-3 mb-0 h-[calc(100dvh-0.75rem)] min-h-0 rounded-t-[28px] bg-workspace ring-1 ring-inset ring-surface-border mobile:m-0 mobile:h-dvh mobile:rounded-none mobile:ring-0;
+  }
+  .app-shell .topbar {
+    @apply border-transparent bg-transparent;
+  }
+  .app-shell main {
+    @apply m-0 w-full max-w-none min-h-0 flex-1 overflow-y-auto overscroll-contain pt-5 pb-0 [scrollbar-gutter:stable];
+  }
+  .app-shell :is(.workspace-content, .sidebar) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted) 80%, transparent) transparent;
+  }
+  @supports selector(::-webkit-scrollbar) {
+    .app-shell :is(.workspace-content, .sidebar) {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+    .app-shell :is(.workspace-content, .sidebar)::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .app-shell :is(.workspace-content, .sidebar)::-webkit-scrollbar-track,
+    .app-shell :is(.workspace-content, .sidebar)::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+    .app-shell :is(.workspace-content, .sidebar)::-webkit-scrollbar-thumb {
+      @apply rounded-full bg-muted-foreground/80;
+    }
+    .app-shell :is(.workspace-content, .sidebar)::-webkit-scrollbar-thumb:hover {
+      @apply bg-muted-foreground;
+    }
+    .app-shell :is(.workspace-content, .sidebar)::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+  .app-shell .dashboard-heading {
+    @apply flex-col items-center gap-0 pt-9 pb-7 text-center mobile:pt-5 mobile:pb-4;
+  }
+  .app-shell .dashboard-heading h1 {
+    @apply max-w-160 text-balance text-[34px] leading-tight font-medium tracking-[-1.4px] mobile:text-[27px];
+  }
+  .app-shell .dashboard-heading p {
+    @apply mx-auto mt-3 max-w-130 text-pretty text-[13px] mobile:text-xs;
+  }
+  .app-shell .dashboard-heading .heading-actions {
+    @apply mt-5 justify-center pt-0 mobile:mt-4 mobile:pt-0;
+  }
+  .dashboard-toolbar {
+    @apply mx-auto flex max-w-220 flex-col gap-4 mb-7;
+  }
+  .dashboard-toolbar .filter-bar {
+    @apply order-first mb-0 justify-start gap-2 rounded-full border border-surface-border bg-control/65 p-2 shadow-panel mobile:rounded-[30px] mobile:gap-2 mobile:p-2;
+  }
+  .dashboard-toolbar .filter-input {
+    @apply min-h-10 border-transparent bg-control/75 rounded-full text-muted-foreground;
+  }
+  .dashboard-toolbar .filter-input select {
+    @apply min-h-10 text-xs;
+  }
+  .app-shell .page-heading:not(.dashboard-heading) {
+    @apply pt-5 pb-2;
+  }
+  .app-shell .page-heading:not(.dashboard-heading) h1 {
+    @apply font-medium text-balance;
+  }
+  .app-shell .page-heading .eyebrow {
+    @apply text-[9px] font-medium tracking-[1.2px] text-muted-foreground;
+  }
+  .app-shell .eyebrow-line {
+    @apply bg-foreground/50;
+  }
+  .app-shell .page-footer {
+    @apply border-surface-border text-muted-foreground;
+  }
+  .app-shell :is(.activity-panel, .exception-panel) .panel-head {
+    @apply phone:flex-col phone:items-start;
+  }
+}

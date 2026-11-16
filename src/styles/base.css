@@ -1,0 +1,212 @@
+/* Shared element defaults; preserve the approved typography and form behavior. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--line);
+  }
+  :root {
+    --bg: #dce1eb;
+    --background: #fafbff;
+    --foreground: #25243d;
+    --card: #ffffffb8;
+    --popover: #fdfdff;
+    --popover-foreground: var(--foreground);
+    --border: var(--line);
+    --input-border: #dce0f0;
+    --surface-muted: #eef0fb;
+    --danger: #b9394d;
+    --success-soft: #edf8f2;
+    --success-foreground: #216a4d;
+    --warning-soft: #fff6e7;
+    --warning-foreground: #885515;
+    --info-soft: #edf3ff;
+    --info-foreground: #3a5c9a;
+    --panel: var(--card);
+    --ink: #25243d;
+    --muted: #6c7087;
+    --line: #dce0ef80;
+    /* Canonical intgrte blue stays identical in light and dark themes. */
+    --brand-blue: #5343df;
+    --brand-ink: #4434c5;
+    --brand-soft: #efedff;
+    --highlight: #ffde59;
+    --highlight-ink: #25243d;
+    --control: #ffffffb3;
+    --control-border: #ffffffe6;
+    --control-hover: #ffffff;
+    --surface-border: #ffffffd9;
+    --sidebar: #ffffff33;
+    --fade-surface: #f8f9ff;
+    --table-header: #eef0fa;
+    --focus: var(--brand-blue);
+    --chart-total: var(--brand-blue);
+    --chart-synced: #4e8b77;
+    --chart-grid: #dce1f2;
+    --workspace-gradient:
+      radial-gradient(ellipse at 95% 95%, #ffde5933 0%, transparent 58%),
+      radial-gradient(ellipse at 5% 80%, #5343df18 0%, transparent 65%),
+      linear-gradient(120deg, #fafbff 0%, #eef0ff 65%, #fffbed 100%);
+    --green: #2e9d7b;
+    --orange: #c78737;
+    --radius: 22px;
+    --shadow: 0 8px 28px -18px #343f7924, inset 0 1px 0 #ffffffc9;
+  }
+  :root.dark {
+    --bg: #090f1c;
+    --background: #111a2a;
+    --foreground: #edf0f8;
+    --card: #182237e8;
+    --popover: #1c2940;
+    --input-border: #36435e;
+    --surface-muted: #243149;
+    --danger: #ff92a2;
+    --success-soft: #173c34;
+    --success-foreground: #8de4bf;
+    --warning-soft: #3c3020;
+    --warning-foreground: #f3ca84;
+    --info-soft: #203554;
+    --info-foreground: #b2cdff;
+    --ink: #edf0f8;
+    --muted: #b0bad0;
+    --line: #34415b99;
+    --brand-ink: color-mix(in srgb, var(--brand-blue) 36%, white);
+    --brand-soft: color-mix(in srgb, var(--brand-blue) 18%, var(--background));
+    --control: #26334be6;
+    --control-border: #ffffff0d;
+    --control-hover: #31405c;
+    --surface-border: #ffffff0f;
+    --sidebar: #111a2a99;
+    --fade-surface: #182237;
+    --table-header: #26334b;
+    --focus: color-mix(in srgb, var(--brand-blue) 50%, white);
+    --chart-synced: #7dd9b4;
+    --chart-grid: #34415b;
+    --green: #7dd9b4;
+    --orange: #efbd79;
+    --workspace-gradient:
+      radial-gradient(ellipse at 98% 98%, #ffde5905 0%, transparent 60%),
+      radial-gradient(ellipse at 5% 10%, #5343df14 0%, transparent 65%),
+      linear-gradient(125deg, #111a2a, #151f34);
+    --shadow: 0 8px 28px -16px #00000066, inset 0 1px 0 #ffffff08;
+  }
+  * {
+    @apply box-border;
+  }
+  body {
+    @apply m-0 bg-canvas text-ink font-sans text-[13px];
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    @apply [font:inherit];
+  }
+  button,
+  a,
+  input,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    @apply cursor-pointer;
+    background-color: transparent;
+  }
+  button:disabled {
+    @apply opacity-42 cursor-not-allowed;
+  }
+  button {
+    transition:
+      background 0.16s,
+      color 0.16s,
+      box-shadow 0.16s;
+  }
+  a {
+    @apply text-[inherit] no-underline;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    @apply [outline:3px_solid_var(--focus)] [outline-offset:3px];
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    @apply m-0;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+  h1 {
+    @apply text-[27px] font-[750] tracking-[-1px] leading-[1.4];
+  }
+  h2 {
+    @apply text-[14px] font-[750] tracking-[-0.25px];
+  }
+  p {
+    @apply leading-[1.65];
+  }
+  svg {
+    @apply shrink-0 [stroke-width:1.8];
+  }
+  input,
+  select {
+    @apply min-h-10.5 border border-solid border-control-border rounded-full py-2.5 px-3 bg-control text-ink w-full;
+  }
+  input::placeholder {
+    @apply text-muted-foreground;
+  }
+  input:disabled {
+    @apply bg-muted/50;
+  }
+  input[type='checkbox'] {
+    @apply w-3.75 min-h-3.75 h-3.75 accent-brand cursor-pointer p-0 shrink-0;
+  }
+  label:not([data-slot]) {
+    @apply flex flex-col gap-2.25 text-[12px] font-semibold;
+  }
+  form {
+    @apply flex flex-col gap-4.75;
+  }
+  main {
+    @apply pt-8 pr-8.75 pb-0 pl-8.75 max-w-430 m-auto;
+  }
+  table {
+    @apply w-full border-collapse text-left whitespace-nowrap text-[10px];
+  }
+  th {
+    @apply text-foreground bg-table-header font-semibold text-xs py-3 px-4.25 border-t border-t-border border-b border-solid border-b-border;
+  }
+  td {
+    @apply py-3.25 px-4.25 border-b border-solid border-b-border text-muted-foreground;
+  }
+  tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  tbody tr:hover {
+    @apply bg-muted/50;
+  }
+  td strong {
+    @apply font-semibold;
+  }
+  details {
+    @apply text-[10px] text-muted-foreground mt-1.75;
+  }
+  summary {
+    @apply cursor-pointer;
+  }
+  pre {
+    @apply [white-space:pre-wrap] wrap-anywhere bg-muted/50 p-3 rounded-[8px] text-muted-foreground text-[10px] max-w-100;
+  }
+  table {
+    @apply text-[11px];
+  }
+}

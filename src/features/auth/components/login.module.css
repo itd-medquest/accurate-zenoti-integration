@@ -1,0 +1,73 @@
+/* Scoped brand palette and static decoration; layout remains in Tailwind utilities. */
+.screen {
+  --login-blue-dark: #4434c5;
+  --input-border: #e4e0fa;
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: radial-gradient(ellipse at 15% 20%, #ffffff0d, transparent 55%), linear-gradient(155deg, var(--brand-blue), var(--login-blue-dark));
+}
+.screen::before, .screen::after {
+  content: '';
+  position: absolute;
+  border: 1px solid #ffffff0e;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+}
+.screen::before {
+  width: 650px;
+  height: 650px;
+  top: -350px;
+  left: -250px;
+  box-shadow: 0 0 0 70px #ffffff03, 0 0 0 140px #ffffff03;
+}
+.screen::after {
+  width: 600px;
+  height: 600px;
+  left: calc(56.5217% - 330px);
+  bottom: -420px;
+  box-shadow: 0 0 0 60px #ffffff04, 0 0 0 120px #ffffff03;
+}
+.formPanel {
+  border-radius: 48px 0 0 48px;
+  box-shadow: -18px 0 0 #ffffff26;
+}
+
+@keyframes login-panel-enter {
+  from {
+    transform: translate3d(100%, 0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes login-story-enter {
+  from {
+    transform: translate3d(-64px, 0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .storyContent {
+    animation: login-story-enter 1200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .formPanel {
+    animation: login-panel-enter 1200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+}
+@media (max-width: 760px) {
+  .formPanel {
+    border-radius: 28px 28px 0 0;
+    box-shadow: 0 -12px 0 #ffffff26;
+  }
+}
