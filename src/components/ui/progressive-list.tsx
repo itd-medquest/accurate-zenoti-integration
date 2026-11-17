@@ -7,7 +7,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './collapsib
 import { cn } from '@/lib/cn';
 
 /** Keep two rows visible, plus a non-interactive glimpse of the next row. */
-export function ProgressiveList({ items, className }: { items: ReactNode[]; className?: string }) {
+export function ProgressiveList({
+  items,
+  className,
+  itemLabel = 'file',
+}: {
+  items: ReactNode[];
+  className?: string;
+  itemLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState({ visible: 4, collapsed: 320, full: 320 });
   const grid = useRef<HTMLDivElement>(null);
@@ -75,7 +83,7 @@ export function ProgressiveList({ items, className }: { items: ReactNode[]; clas
       {limited && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4 mobile:px-4">
           <span className="text-xs text-muted-foreground">
-            {expanded ? items.length : layout.visible} dari {items.length} file ditampilkan
+            {expanded ? items.length : layout.visible} dari {items.length} {itemLabel} ditampilkan
           </span>
           <CollapsibleTrigger asChild aria-controls={id}>
             <Button variant="outline" size="sm">

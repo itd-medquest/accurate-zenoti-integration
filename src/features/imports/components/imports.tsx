@@ -299,7 +299,7 @@ export function ImportsView({
     setNotice('');
   }
   return (
-    <div className="imports-view max-w-350">
+    <div className="imports-view">
       <div className="page-heading mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1>Faktur Penjualan.</h1>

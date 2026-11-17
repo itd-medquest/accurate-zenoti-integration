@@ -470,7 +470,15 @@ export function AppShell() {
               onConfigure={admin ? () => navigate('settings') : undefined}
             />
           )}
-          {view === 'receipts' && operate && <ReceiptsView />}
+          {view === 'receipts' && operate && (
+            <ReceiptsView
+              branches={branches}
+              onConfigure={admin ? () => navigate('settings') : undefined}
+              onInvoice={(id) =>
+                void run(async () => setDetail(await getInvoice(id)), 'Detail invoice dimuat.')
+              }
+            />
+          )}
           {view === 'settings' && admin && (
             <SettingsView
               branches={branches}
@@ -491,11 +499,9 @@ export function AppShell() {
           <footer className="page-footer pt-6 pr-0 pb-5.5 pl-0 border-t border-solid border-t-border flex items-center justify-between gap-3.75 mt-7 text-[8px] text-muted-foreground mobile:mt-6 mobile:text-[7px] mobile:gap-2">
             <div className="flex items-center gap-3">
               <BrandLogo className="w-16" />
-              <span className="mobile:hidden">Integrated Business Platform</span>
             </div>
             <span>
-              <ShieldCheck size={13} /> Zenoti → Accurate Online{' '}
-              <span className="footer-dot my-0 mx-0.75 mobile:hidden">·</span> Pilot Jakarta
+              <ShieldCheck size={13} /> Secured Platform
             </span>
           </footer>
         </main>
