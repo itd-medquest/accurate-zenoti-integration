@@ -11,6 +11,7 @@ import { getSettings, updateBranch } from '@/features/settings/services/settings
 import { type Settings } from '@/features/settings/types';
 import { AccurateConnection } from './accurate-connection';
 import { AccurateDestinations } from './accurate-destinations';
+import { ReceiptAccountSettings } from '@/features/receipts/components/receipt-account-settings';
 import { type Branch } from '@/types';
 import {
   ArrowRight,
@@ -60,6 +61,7 @@ export function SettingsView({
         {[
           { id: 'connections', label: 'Koneksi integrasi', icon: PlugZap },
           { id: 'branches', label: 'Tujuan perusahaan', icon: Building2 },
+          { id: 'receipts', label: 'Akun penerimaan', icon: Building2 },
           { id: 'security', label: 'Keamanan akun', icon: KeyRound },
         ].map(({ id, label, icon: Icon }) => (
           <TabsTrigger
@@ -135,6 +137,9 @@ export function SettingsView({
       </TabsContent>
       <TabsContent value="security">
         <PasswordForm run={run} />
+      </TabsContent>
+      <TabsContent value="receipts">
+        <ReceiptAccountSettings branches={branches} />
       </TabsContent>
     </Tabs>
   );

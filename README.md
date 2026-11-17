@@ -12,7 +12,7 @@ Platform untuk meninjau invoice Zenoti dan mengelola pengiriman Faktur Penjualan
 - Pengaturan koneksi Accurate, perusahaan tujuan, pengguna, notifikasi, dan audit sesuai hak akses.
 - Tampilan responsif, mode terang/gelap, dan dukungan reduced motion.
 
-Upload dan preview tidak langsung mengirim transaksi. Pengiriman dilakukan setelah pemeriksaan dan submit; hasilnya mengikuti konfigurasi backend. Halaman Penerimaan Penjualan menampilkan faktur aktual yang sudah diverifikasi; pengiriman penerimaan belum tersedia. Modul Command menampilkan Coming Soon.
+Upload dan preview tidak langsung mengirim transaksi. Pengiriman faktur dilakukan setelah pemeriksaan dan submit; hasilnya mengikuti konfigurasi backend. Halaman Penerimaan Penjualan menyediakan daftar pembayaran, filter, review, simpan draft, saldo Accurate, dan pengiriman setelah konfirmasi Finance. Mapping akun kas/bank dan biaya diatur pada tab Akun penerimaan di Settings. Status diperbarui otomatis; hasil pengiriman yang belum pasti dapat diperiksa di Accurate tanpa membuat transaksi kedua. Modul Command menampilkan Coming Soon.
 
 ## Persyaratan
 
