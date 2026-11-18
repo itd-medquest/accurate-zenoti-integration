@@ -175,7 +175,7 @@ async function mockApi(
       return json({
         mode: 'live',
         targetStatus: 'SALES_INVOICE',
-        queue: 'postgresql',
+        queue: 'mysql',
         timezone: 'Asia/Jakarta',
         accurate: {
           mode: 'live',

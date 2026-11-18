@@ -33,12 +33,12 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-Buka `http://localhost:3000`. Siapkan dan jalankan backend di terminal terpisah mengikuti README backend. Akun lokal mengikuti konfigurasi seed backend.
+Buka `http://localhost:3000`. Siapkan dan jalankan backend di terminal terpisah mengikuti README backend. Backend menggunakan MySQL 8.4 LTS. Akun lokal mengikuti seed admin atau import akun lama di backend; tampilan dan alur frontend tidak berubah.
 
 ### Konfigurasi
 
-| Variabel | Kegunaan | Default lokal |
-| --- | --- | --- |
+| Variabel              | Kegunaan                            | Default lokal           |
+| --------------------- | ----------------------------------- | ----------------------- |
 | `NEXT_PUBLIC_API_URL` | Alamat backend tanpa akhiran `/api` | `http://localhost:4000` |
 
 Variabel berawalan `NEXT_PUBLIC_` tersedia di browser. Simpan kredensial Accurate dan secret lainnya di backend. Setelah mengubah alamat API, restart server pengembangan; untuk deployment, buat ulang build dengan nilai yang sesuai.
@@ -47,20 +47,20 @@ Variabel berawalan `NEXT_PUBLIC_` tersedia di browser. Simpan kredensial Accurat
 
 Jalankan dari direktori repository frontend.
 
-| Perintah | Kegunaan |
-| --- | --- |
-| `npm ci` | Menginstal dependency sesuai lockfile |
-| `npm run dev` | Menjalankan server pengembangan |
-| `npm run typecheck` | Memeriksa TypeScript |
-| `npm run build` | Membuat build produksi |
-| `npm start` | Menjalankan hasil build produksi |
-| `npm run test:e2e` | Menjalankan pengujian browser Playwright |
+| Perintah            | Kegunaan                                 |
+| ------------------- | ---------------------------------------- |
+| `npm ci`            | Menginstal dependency sesuai lockfile    |
+| `npm run dev`       | Menjalankan server pengembangan          |
+| `npm run typecheck` | Memeriksa TypeScript                     |
+| `npm run build`     | Membuat build produksi                   |
+| `npm start`         | Menjalankan hasil build produksi         |
+| `npm run test:e2e`  | Menjalankan pengujian browser Playwright |
 
 Aset PDF.js disiapkan otomatis oleh `predev` dan `prebuild`, sehingga folder vendor hasil generate tidak perlu disimpan di Git. Alternatif untuk pengguna Windows: `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`.
 
 ## Pengujian browser
 
-Pengujian membuat pengguna, upload, dan transaksi uji. Gunakan fixture terisolasi berikut dengan repository backend di `../backend` dan `.env` backend yang sudah disiapkan. Fixture menggunakan database sementara dan respons Accurate tiruan.
+Pengujian membuat pengguna, upload, dan transaksi uji. Gunakan fixture terisolasi berikut dengan repository backend di `../backend` dan `.env` backend yang sudah disiapkan. Fixture menggunakan schema MySQL sementara dan respons Accurate tiruan. Siapkan `TEST_DATABASE_URL` pada environment backend atau `.env.test.local` privat sebelum menjalankan fixture; database aplikasi tidak dipakai untuk pengujian.
 
 1. Dari backend, buat template anonim dan jalankan fixture API:
 
