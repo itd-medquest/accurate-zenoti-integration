@@ -33,7 +33,7 @@ test('desktop dashboard, retired modules absent, invoice detail, settings, users
   await expect(
     page.locator('.sidebar').getByRole('img', { name: 'intgrte', exact: true }),
   ).toBeVisible();
-  await expect(page.locator('.sidebar [data-slot=brand-logo] image')).toHaveAttribute(
+  await expect(page.locator('.sidebar [data-slot=brand-logo] image:visible')).toHaveAttribute(
     'href',
     '/branding/intgrte-black.png',
   );

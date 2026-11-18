@@ -69,7 +69,7 @@ async function mockWorkspace(page: Page, role = 'super_admin') {
         body = {
           mode: 'live',
           targetStatus: 'DRAFT',
-          queue: 'postgres',
+          queue: 'mysql',
           timezone: 'Asia/Jakarta',
           accurate: {
             mode: 'live',

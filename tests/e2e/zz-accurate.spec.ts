@@ -194,6 +194,7 @@ test('actual invoice UI maps customer and items, preserves preview and shows ver
   await expect(page.getByText('Tersinkron', { exact: true })).toBeVisible({ timeout: 20000 });
   await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
   await expect(page.getByRole('cell', { name: new RegExp(number) })).toBeVisible();
-  await expect(page.getByText(/Belum ada pembayaran yang dikirim/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Penerimaan Penjualan.' })).toBeVisible();
+  await expect(page.getByText('Belum direview', { exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);
 });
