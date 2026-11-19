@@ -24,6 +24,7 @@ async function mockApi(
     balanceUnavailable?: boolean;
     legacyNumber?: boolean;
     sourceMethod?: 'card' | 'bank';
+    missingReceipt?: boolean;
   } = {},
 ) {
   let balanceUnavailable = options.balanceUnavailable ?? false;
@@ -32,7 +33,7 @@ async function mockApi(
     invoiceId: '00000000-0000-4000-8000-000000000004',
     branchId: branch,
     databaseId: '99',
-    number: options.legacyNumber ? 'INT-RC-LEGACY' : 'INV-EXAMPLE',
+    number: options.missingReceipt ? '' : options.legacyNumber ? 'INV-EXAMPLE' : 'RECEIPT-EXAMPLE',
     mappingId: null,
     mappingVersion: null,
     bank: null,
@@ -241,8 +242,10 @@ async function mockApi(
         };
       return json({
         draft: current,
+        receiptNumber: options.missingReceipt ? current.number || null : 'RECEIPT-EXAMPLE',
         invoice: { number: 'INV-EXAMPLE', customer: 'Customer Uji', total: 200001 },
         source: {
+          receiptNumber: options.missingReceipt ? null : 'RECEIPT-EXAMPLE',
           method: current.sourceMethod,
           paidAt: '2026-11-01T00:00:00+07:00',
           gross: 200001,
@@ -260,7 +263,8 @@ async function mockApi(
           message: blocked ? 'Pembayaran sumber berubah. Data tersimpan tetap tersedia.' : null,
         },
         delivery: {
-          enabled: !blocked && !balanceUnavailable && current.status === 'DRAFT',
+          enabled:
+            !blocked && !balanceUnavailable && !!current.number && current.status === 'DRAFT',
           message: blocked
             ? 'Pembayaran sumber berubah.'
             : balanceUnavailable
@@ -272,6 +276,7 @@ async function mockApi(
             ? { outstanding: 200001, checkedAt: '2026-11-17T02:00:00Z' }
             : null,
         actions: {
+          canSetNumber: !blocked && options.missingReceipt && current.status === 'DRAFT',
           canCheck: current.status === 'NEEDS_REVIEW',
           canReopen: current.status === 'NEEDS_REVIEW' && outcome === 'rejected',
         },
@@ -279,12 +284,14 @@ async function mockApi(
     }
     if (path === '/receipts/' + draftId && method === 'PUT') {
       const body = route.request().postDataJSON();
+      if (body.receiptNumber === 'DUPLICATE-RECEIPT')
+        return json({ error: 'No. Bukti sudah dipakai oleh penerimaan lain.' }, 409);
       saved++;
       expect(body.mappingVersion).toBe(1);
       current = {
         ...current,
         ...body,
-        number: 'INV-EXAMPLE',
+        number: options.missingReceipt ? (body.receiptNumber ?? current.number) : 'RECEIPT-EXAMPLE',
         version: current.version + 1,
         bank: 'BCA',
         method: 'QRIS',
@@ -446,6 +453,22 @@ for (const mobile of [false, true])
     await page.getByLabel('Catatan Finance', { exact: true }).fill('Catatan belum disimpan');
     await page.getByRole('button', { name: 'Kembali ke riwayat', exact: true }).click();
     await expect(page.getByRole('alertdialog')).toContainText('Ada perubahan yang belum disimpan');
+    const dialog = page.getByRole('alertdialog');
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    for (const button of await dialog.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(bounds!.x + 8);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width - 8);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height - 8);
+    }
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await dialog.screenshot({
+      path: `tmp/receipt-unsaved-${mobile ? 'mobile' : 'dark-desktop'}.png`,
+    });
     await page.getByRole('button', { name: 'Lanjutkan review', exact: true }).click();
     await expect(page.getByLabel('Catatan Finance', { exact: true })).toHaveValue(
       'Catatan belum disimpan',
@@ -603,7 +626,7 @@ test('a balance lookup error allows mapping and draft entry, but keeps delivery 
   await expect(page.getByRole('button', { name: 'Kirim ke Accurate', exact: true })).toBeEnabled();
 });
 
-test('No. Bukti uses the exact invoice number and a legacy draft must be saved before sending', async ({
+test('No. Bukti uses the source receipt number and a legacy draft must be saved before sending', async ({
   page,
 }) => {
   const fixture = await mockApi(page, false, 'success', { legacyNumber: true });
@@ -612,17 +635,116 @@ test('No. Bukti uses the exact invoice number and a legacy draft must be saved b
   await page.getByRole('button', { name: 'Review', exact: true }).click();
   const number = page
     .locator('dl > div')
-    .filter({ has: page.locator('dt', { hasText: 'No. Bukti Accurate' }) });
-  await expect(number.locator('dd')).toHaveText('INV-EXAMPLE');
+    .filter({ has: page.locator('dt', { hasText: 'No. Bukti Accurate (No. Receipt)' }) });
+  await expect(number.locator('dd')).toHaveText('RECEIPT-EXAMPLE');
+  await expect(page.getByRole('button', { name: 'Isi No. Receipt', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Ubah No. Receipt', exact: true })).toHaveCount(0);
+  await expect(
+    page
+      .locator('dl > div')
+      .filter({ has: page.locator('dt', { hasText: 'Faktur Accurate' }) })
+      .locator('dd'),
+  ).toHaveText('INV-EXAMPLE');
   await expect(page.getByLabel(/Saya telah memeriksa sumber/)).toBeDisabled();
   await selectOption(page.getByLabel('Bank dan metode pembayaran', { exact: true }), mappingId);
   await page.getByLabel('Referensi pembayaran', { exact: true }).fill('REFERENCE-EXACT-NUMBER');
   await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
   await expect.poll(() => fixture.state().saved).toBe(1);
   await expect(page.getByText('Draft tersimpan di intgrte.', { exact: true })).toBeVisible();
-  await expect(number.locator('dd')).toHaveText('INV-EXAMPLE');
+  await expect(number.locator('dd')).toHaveText('RECEIPT-EXAMPLE');
+  await expect(page.getByLabel('Referensi pembayaran', { exact: true })).toHaveValue(
+    'REFERENCE-EXACT-NUMBER',
+  );
   expect(fixture.state().remoteSubmits).toBe(0);
 });
+
+for (const mobile of [false, true])
+  test(`missing receipt uses a manual modal, keeps other input and persists through the draft ${mobile ? 'mobile' : 'dark desktop'}`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const fixture = await mockApi(page, false, 'success', { missingReceipt: true });
+    await page.setViewportSize({ width: mobile ? 390 : 1500, height: mobile ? 844 : 1000 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
+    if (!mobile)
+      await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
+    if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
+    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('button', { name: 'Review', exact: true }).click();
+    const number = page
+      .locator('dl > div')
+      .filter({ has: page.locator('dt', { hasText: 'No. Bukti Accurate (No. Receipt)' }) });
+    await expect(number).toContainText('Belum diisi');
+    await expect(
+      page.getByRole('button', { name: 'Kirim ke Accurate', exact: true }),
+    ).toBeDisabled();
+    await selectOption(page.getByLabel('Bank dan metode pembayaran', { exact: true }), mappingId);
+    await page.getByLabel('Referensi pembayaran', { exact: true }).fill('REFERENCE-UNCHANGED');
+    await page.getByLabel('Catatan Finance', { exact: true }).fill('Catatan tetap tersedia');
+    await expect(page.getByRole('button', { name: 'Simpan draft', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Isi No. Receipt', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Isi No. Receipt', exact: true });
+    const input = dialog.getByLabel('No. Receipt', { exact: true });
+    await expect(input).toBeFocused();
+    await dialog.getByRole('button', { name: 'Gunakan nomor', exact: true }).click();
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await input.fill('0');
+    await dialog.getByRole('button', { name: 'Gunakan nomor', exact: true }).click();
+    await expect(dialog).toContainText('selain 0');
+    await input.fill('DUPLICATE-RECEIPT');
+    await dialog.screenshot({
+      path: `tmp/receipt-number-modal-${mobile ? 'mobile' : 'dark-desktop'}.png`,
+    });
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await dialog.getByRole('button', { name: 'Gunakan nomor', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByLabel('Catatan Finance', { exact: true })).toHaveValue(
+      'Catatan tetap tersedia',
+    );
+    await expect(page.getByLabel('Referensi pembayaran', { exact: true })).toHaveValue(
+      'REFERENCE-UNCHANGED',
+    );
+    await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'No. Bukti sudah dipakai' }),
+    ).toBeVisible();
+    await expect(number).toContainText('DUPLICATE-RECEIPT');
+    await page.getByRole('button', { name: 'Ubah No. Receipt', exact: true }).click();
+    const changeDialog = page.getByRole('dialog', { name: 'Ubah No. Receipt', exact: true });
+    await changeDialog.getByLabel('No. Receipt', { exact: true }).fill('  MPA-R-R3902  ');
+    await changeDialog.getByRole('button', { name: 'Gunakan nomor', exact: true }).click();
+    await expect(number).toContainText('MPA-R-R3902');
+    await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
+    await expect.poll(() => fixture.state().saved).toBe(1);
+    await expect(page.getByText('Draft tersimpan di intgrte.', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Kembali ke riwayat', exact: true }).click();
+    await page.getByRole('button', { name: 'Review', exact: true }).click();
+    await expect(number).toContainText('MPA-R-R3902');
+    await expect(page.getByLabel('Referensi pembayaran', { exact: true })).toHaveValue(
+      'REFERENCE-UNCHANGED',
+    );
+    expect(fixture.state().remoteSubmits).toBe(0);
+    await page.getByLabel(/Saya telah memeriksa sumber/).check();
+    await page.getByRole('button', { name: 'Kirim ke Accurate', exact: true }).click();
+    await page.getByRole('button', { name: 'Ya, kirim penerimaan', exact: true }).click();
+    await expect(
+      page.getByText('Penerimaan sedang diproses. Status akan diperbarui otomatis.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.clock.runFor(15_100);
+    await expect(
+      page.getByText('Penerimaan terverifikasi di Accurate.', { exact: true }),
+    ).toBeVisible({ timeout: 12000 });
+    await expect(page.getByRole('button', { name: 'Ubah No. Receipt', exact: true })).toHaveCount(
+      0,
+    );
+    expect(fixture.state().remoteSubmits).toBe(1);
+  });
 
 for (const sourceMethod of ['card', 'bank'] as const)
   test(`saved BCA and BNI mappings remain selectable and match ${sourceMethod} source payments`, async ({
