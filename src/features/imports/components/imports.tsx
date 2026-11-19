@@ -388,7 +388,7 @@ export function ImportsView({
               );
             })}
           </div>
-          <ImportDeliveryNotice batch={batch} onConfigure={onConfigure} />
+          <ImportDeliveryNotice batch={batch} branchId={branch} onConfigure={onConfigure} />
           <div className="import-batch-heading flex items-center justify-between gap-3.5 mb-4.5 flex-wrap">
             <Button variant="outline" disabled={busy} onClick={returnToHistory}>
               <ChevronLeft data-icon="inline-start" />

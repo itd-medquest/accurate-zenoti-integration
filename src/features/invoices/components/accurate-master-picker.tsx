@@ -17,8 +17,10 @@ export function AccurateMasterPicker({
   disabled,
   onSelect,
   emptyAction,
+  branchId,
 }: {
   kind: 'customer' | 'item' | 'branch';
+  branchId?: string;
   label: string;
   initialSearch?: string;
   selected?: { code: string; name: string; unitName?: string };
@@ -39,7 +41,7 @@ export function AccurateMasterPicker({
     setBusy(true);
     setError('');
     try {
-      const result = await searchAccurateMasters(kind, search, nextPage);
+      const result = await searchAccurateMasters(kind, search, nextPage, branchId);
       setResults(result.items);
       setChoice('');
       setPage(nextPage);

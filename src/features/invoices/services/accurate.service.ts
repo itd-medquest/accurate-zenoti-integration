@@ -5,7 +5,11 @@ import type {
   DeliveredInvoice,
   CustomerPreparation,
 } from '../types/accurate';
-export const getAccurateStatus = () => api<AccurateStatus>('/accurate/status');
+export const getAccurateStatus = (branchId?: string, signal?: AbortSignal) =>
+  api<AccurateStatus>(
+    `/accurate/status${branchId ? `?${new URLSearchParams({ branchId })}` : ''}`,
+    { signal },
+  );
 export const getDeliveredInvoices = () => api<DeliveredInvoice[]>('/accurate/delivered-invoices');
 export function prepareAccurateCustomer(batchId: string, rowId: string, version: number) {
   return api<CustomerPreparation>(
@@ -32,9 +36,10 @@ export function searchAccurateMasters(
   kind: 'customer' | 'item' | 'branch',
   search: string,
   page = 1,
+  branchId?: string,
 ) {
   return api<{ database: { id: string; name: string }; items: AccurateMaster[] }>(
-    `/accurate/masters?${new URLSearchParams({ kind, search, page: String(page) })}`,
+    `/accurate/masters?${new URLSearchParams({ kind, search, page: String(page), ...(branchId ? { branchId } : {}) })}`,
   );
 }
 export function saveAccurateDestination(branchId: string, targetBranchId: string) {

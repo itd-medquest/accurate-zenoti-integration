@@ -19,10 +19,12 @@ export function AccurateConnection({
   settings,
   run,
   refresh,
+  branchId,
 }: {
   settings: Settings;
   run: (task: () => Promise<unknown>, message: string) => Promise<void>;
   refresh: () => Promise<void>;
+  branchId?: string;
 }) {
   const connection = settings.connections.find((connection) => connection.id === 'accurate');
   const [enabled, setEnabled] = useState(connection?.enabled ?? false);
@@ -50,14 +52,18 @@ export function AccurateConnection({
             setTestMessage('');
             try {
               await run(async () => {
-                await configureConnection('accurate', {
-                  enabled,
-                  accurate: {
-                    mode,
-                    ...(apiToken ? { apiToken } : {}),
-                    ...(signatureSecret ? { signatureSecret } : {}),
+                await configureConnection(
+                  'accurate',
+                  {
+                    enabled,
+                    accurate: {
+                      mode,
+                      ...(apiToken ? { apiToken } : {}),
+                      ...(signatureSecret ? { signatureSecret } : {}),
+                    },
                   },
-                });
+                  branchId,
+                );
                 setApiToken('');
                 setSignatureSecret('');
                 await refresh();
@@ -144,7 +150,7 @@ export function AccurateConnection({
                   setTestMessage('');
                   try {
                     await run(async () => {
-                      const result = await testConnection('accurate');
+                      const result = await testConnection('accurate', branchId);
                       setTestMessage(result.message);
                     }, 'Pengujian koneksi selesai.');
                   } finally {

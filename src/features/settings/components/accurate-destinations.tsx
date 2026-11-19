@@ -10,13 +10,14 @@ import type { AccurateStatus } from '@/features/invoices/types/accurate';
 import type { Branch } from '@/types';
 import { Building2 } from 'lucide-react';
 export function AccurateDestinations({ branches }: { branches: Branch[] }) {
+  const branchId = branches[0]?.id;
   const [status, setStatus] = useState<AccurateStatus | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    getAccurateStatus()
+    getAccurateStatus(branchId)
       .then(setStatus)
       .catch((error) => setError(error.message));
-  }, []);
+  }, [branchId]);
   return (
     <Card>
       <CardHeader className="items-start">
@@ -51,6 +52,7 @@ export function AccurateDestinations({ branches }: { branches: Branch[] }) {
                     </p>
                   )}
                   <AccurateMasterPicker
+                    branchId={branch.id}
                     kind="branch"
                     label={`${branch.name} → Tujuan Accurate`}
                     selected={
