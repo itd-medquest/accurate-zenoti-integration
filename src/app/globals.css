@@ -7,6 +7,7 @@
 @import '../styles/base.css';
 @import '../styles/components.css';
 @import '../styles/workspace.css';
+@import '../styles/interactions.css';
 
 /* The approved reset lives in base.css; Preflight is deliberately not imported. */
 @theme inline {
@@ -22,8 +23,8 @@
   --color-secondary: var(--brand-soft);
   --color-secondary-foreground: var(--brand-ink);
   --color-muted-foreground: var(--muted);
-  --color-accent: var(--brand-soft);
-  --color-accent-foreground: var(--brand-ink);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--line);
   --color-input: var(--input-border);
   --color-ring: var(--focus);

@@ -31,21 +31,19 @@ export function ImportPagination({
       </span>
       <div>
         {onPageSize && (
-          <label>
-            Per halaman{' '}
-            <SelectField
-              aria-label={`${label}: jumlah per halaman`}
-              disabled={disabled}
-              value={pageSize}
-              onValueChange={(e) => onPageSize(Number(e))}
-            >
-              {[10, 25, 50].map((size) => (
-                <SelectFieldOption key={size} value={size}>
-                  {size}
-                </SelectFieldOption>
-              ))}
-            </SelectField>
-          </label>
+          <SelectField
+            className="w-20"
+            aria-label={`${label}: jumlah per halaman`}
+            disabled={disabled}
+            value={pageSize}
+            onValueChange={(e) => onPageSize(Number(e))}
+          >
+            {[10, 25, 50].map((size) => (
+              <SelectFieldOption key={size} value={size}>
+                {size}
+              </SelectFieldOption>
+            ))}
+          </SelectField>
         )}
         <Button
           className="button inline-flex items-center justify-center whitespace-nowrap secondary"
