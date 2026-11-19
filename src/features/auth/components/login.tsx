@@ -53,7 +53,7 @@ INTGRTE adalah platform internal yang mengintegrasikan berbagai sistem dan kebut
         </div>
         <div className="relative flex items-center gap-2 text-xs text-primary-foreground/65 mobile:hidden">
           <ShieldCheck size={16} aria-hidden="true" />
-          v0.0.1
+          Secured Platform
         </div>
       </section>
       <section className={cn(styles.formPanel, 'relative flex min-w-0 flex-col items-center justify-center bg-background px-[clamp(2rem,5vw,5.5rem)] py-14 mobile:px-7 mobile:py-10')} aria-labelledby="login-heading"

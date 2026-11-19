@@ -82,6 +82,7 @@ export function AccurateMappingPanel({
           </summary>
           <div className="mt-3 flex flex-col gap-3">
             <AccurateMasterPicker
+              branchId={batch.branchId}
               kind="customer"
               label="Customer Accurate"
               initialSearch={row.candidate.customerId}
@@ -108,6 +109,7 @@ export function AccurateMappingPanel({
             />
             {chargeableItems(row.candidate.items).map((item) => (
               <AccurateMasterPicker
+                branchId={batch.branchId}
                 key={item.id}
                 kind="item"
                 label={item.name}

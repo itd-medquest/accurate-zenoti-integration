@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PasswordForm } from '@/features/auth/components/password-form';
 import { getSettings, updateBranch } from '@/features/settings/services/settings.service';
 import { type Settings } from '@/features/settings/types';
 import { AccurateConnection } from './accurate-connection';
 import { AccurateDestinations } from './accurate-destinations';
+import { CompanyManagement } from './company-management';
 import { ReceiptAccountSettings } from '@/features/receipts/components/receipt-account-settings';
 import { type Branch } from '@/types';
 import {
@@ -31,16 +33,28 @@ export function SettingsView({
 }: {
   branches: Branch[];
   run: (task: () => Promise<unknown>, message: string) => Promise<void>;
-  reload: () => void;
+  reload: () => Promise<void>;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [tab, setTab] = useState('connections');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const companyId = selectedCompany || branches[0]?.id;
+  const companyBranches = branches.filter((branch) => branch.id === companyId);
   const [error, setError] = useState('');
   useEffect(() => {
-    getSettings()
-      .then(setSettings)
-      .catch((e) => setError(e.message));
-  }, []);
+    const controller = new AbortController();
+    setSettings(null);
+    setError('');
+    getSettings(companyId, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) setSettings(value);
+      })
+      .catch((e: unknown) => {
+        if (!controller.signal.aborted)
+          setError(e instanceof Error ? e.message : 'Pengaturan gagal dimuat.');
+      });
+    return () => controller.abort();
+  }, [companyId]);
   if (error)
     return (
       <Alert
@@ -60,6 +74,7 @@ export function SettingsView({
       >
         {[
           { id: 'connections', label: 'Koneksi integrasi', icon: PlugZap },
+          { id: 'companies', label: 'Perusahaan', icon: Building2 },
           { id: 'branches', label: 'Tujuan perusahaan', icon: Building2 },
           { id: 'receipts', label: 'Akun penerimaan', icon: Building2 },
           { id: 'security', label: 'Keamanan akun', icon: KeyRound },
@@ -74,11 +89,42 @@ export function SettingsView({
           </TabsTrigger>
         ))}
       </TabsList>
+      {tab !== 'companies' && tab !== 'security' && (
+        <Field className="max-w-md">
+          <FieldLabel htmlFor="settings-company">Perusahaan yang diatur</FieldLabel>
+          <SelectField
+            id="settings-company"
+            value={companyId ?? ''}
+            onValueChange={setSelectedCompany}
+            disabled={!branches.length}
+          >
+            {branches.map((branch) => (
+              <SelectFieldOption key={branch.id} value={branch.id}>
+                {branch.name}
+              </SelectFieldOption>
+            ))}
+          </SelectField>
+        </Field>
+      )}
+      <TabsContent value="companies">
+        <CompanyManagement
+          onChanged={async () => {
+            await reload();
+            setSelectedCompany('');
+          }}
+          onConfigure={(id) => {
+            setSelectedCompany(id);
+            setTab('connections');
+          }}
+        />
+      </TabsContent>
       <TabsContent value="connections" className="flex flex-col gap-6 data-[state=inactive]:hidden">
         <AccurateConnection
+          key={companyId ?? 'legacy'}
+          branchId={companyId}
           settings={settings}
           run={run}
-          refresh={async () => setSettings(await getSettings())}
+          refresh={async () => setSettings(await getSettings(companyId))}
         />
         <Card>
           <CardHeader className="items-start">
@@ -115,7 +161,7 @@ export function SettingsView({
         </Card>
       </TabsContent>
       <TabsContent value="branches" className="flex flex-col gap-6 data-[state=inactive]:hidden">
-        <AccurateDestinations branches={branches} />
+        <AccurateDestinations key={companyId} branches={companyBranches} />
         {settings.accurate.mode === 'simulation' && (
           <Card>
             <CardHeader className="items-start">
@@ -128,7 +174,7 @@ export function SettingsView({
               <Database className="size-5 text-muted-foreground" aria-hidden="true" />
             </CardHeader>
             <CardContent className="flex flex-col gap-6 pb-5">
-              {branches.map((b) => (
+              {companyBranches.map((b) => (
                 <BranchForm key={b.id} branch={b} run={run} reload={reload} />
               ))}
             </CardContent>
@@ -139,7 +185,7 @@ export function SettingsView({
         <PasswordForm run={run} />
       </TabsContent>
       <TabsContent value="receipts">
-        <ReceiptAccountSettings branches={branches} />
+        <ReceiptAccountSettings key={companyId} branches={companyBranches} />
       </TabsContent>
     </Tabs>
   );

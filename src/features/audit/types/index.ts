@@ -6,3 +6,10 @@ export type AuditLog = {
   createdAt: string;
   details: unknown;
 };
+
+export type AuditPage = {
+  items: AuditLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+};

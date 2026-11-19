@@ -32,8 +32,10 @@ function AccountPicker({
   value,
   persistedId,
   onChange,
+  branchId,
 }: {
   kind: 'bank' | 'fee';
+  branchId: string;
   label: string;
   value: ReceiptAccount | null;
   persistedId?: string | null;
@@ -51,7 +53,7 @@ function AccountPicker({
     setBusy(true);
     setError('');
     try {
-      const result = await searchReceiptAccounts(kind, search, nextPage);
+      const result = await searchReceiptAccounts(kind, search, nextPage, branchId);
       setRows(result.items);
       setPage(nextPage);
       setSelected('');
@@ -269,6 +271,7 @@ function MappingForm({
       <FieldGroup className="gap-5">
         <FieldGroup className="grid items-start gap-4 lg:grid-cols-2">
           <AccountPicker
+            branchId={branchId}
             kind="bank"
             label="Akun kas/bank penerima"
             value={account}
@@ -277,6 +280,7 @@ function MappingForm({
           />
           {method !== 'BANK_TRANSFER' && (
             <AccountPicker
+              branchId={branchId}
               kind="fee"
               label="Akun biaya administrasi"
               value={fee}
@@ -320,7 +324,7 @@ export function ReceiptAccountSettings({ branches }: { branches: Branch[] }) {
   const [error, setError] = useState('');
   async function load() {
     try {
-      setConfig(await getReceiptConfiguration());
+      setConfig(await getReceiptConfiguration(branch));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Pengaturan belum dapat dimuat.');
@@ -328,7 +332,7 @@ export function ReceiptAccountSettings({ branches }: { branches: Branch[] }) {
   }
   useEffect(() => {
     void load();
-  }, []);
+  }, [branch]);
   const previous = config?.mappings.find(
     (row) => row.branchId === branch && row.bank === bank && row.method === method,
   );

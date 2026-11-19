@@ -2,6 +2,9 @@
 import { EmptyState, Loading } from '@/components/ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ImportPagination } from '@/components/ui/pagination';
+import { usePolledResource } from '@/hooks/use-polled-resource';
 import {
   Table,
   TableBody,
@@ -11,45 +14,51 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { listAudit } from '@/features/audit/services/audit.service';
-import type { AuditLog } from '@/features/audit/types';
 import { ShieldCheck } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+const noPolling = () => false;
+
 export function AuditView() {
-  const [logs, setLogs] = useState<AuditLog[] | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    listAudit()
-      .then(setLogs)
-      .catch((e) => setError(e.message));
-  }, []);
-  if (error)
-    return (
-      <Alert
-        className="alert flex gap-2.5 items-start py-3.5 px-4 mb-5 warning"
-        variant="destructive"
-      >
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const fetcher = useCallback(
+    (signal: AbortSignal) => listAudit(page, pageSize, signal),
+    [page, pageSize],
+  );
+  const { data, error, busy, load } = usePolledResource({
+    fetcher,
+    shouldPoll: noPolling,
+    fallback: 'Audit aktivitas gagal dimuat.',
+  });
   return (
     <Card className="panel overflow-hidden">
       <CardHeader className="panel-head flex items-center justify-between py-5 px-5.25 gap-3.75 wide:p-5.75 compact:py-4.5 compact:px-4.25">
         <div>
           <CardTitle>Audit aktivitas</CardTitle>
           <CardDescription>
-            100 tindakan operasional terbaru. Riwayat sinkronisasi tersedia pada detail invoice.
+            Riwayat tindakan operasional, diurutkan dari aktivitas terbaru.
           </CardDescription>
         </div>
         <ShieldCheck size={21} />
       </CardHeader>
-      <CardContent className="p-0">
-        {!logs ? (
+      <CardContent className="p-0" aria-busy={busy}>
+        {error && (
+          <Alert className="m-5 w-auto" variant="destructive" role="alert">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void load()}>
+                Coba lagi
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {!data && !error ? (
           <Loading />
-        ) : !logs.length ? (
+        ) : data && !data.items.length ? (
           <EmptyState text="Belum ada aktivitas operasional." />
-        ) : (
+        ) : data ? (
           <div className="table-scroll overflow-auto">
-            <Table>
+            <Table aria-label="Audit aktivitas">
               <TableHeader>
                 <TableRow>
                   <TableHead>WAKTU (WIB)</TableHead>
@@ -60,7 +69,7 @@ export function AuditView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((l) => (
+                {data.items.map((l) => (
                   <TableRow key={l.id}>
                     <TableCell>
                       {new Intl.DateTimeFormat('id-ID', {
@@ -91,6 +100,20 @@ export function AuditView() {
               </TableBody>
             </Table>
           </div>
+        ) : null}
+        {data && (
+          <ImportPagination
+            label="Halaman audit aktivitas"
+            page={data.page}
+            total={data.total}
+            pageSize={data.pageSize}
+            onPage={setPage}
+            onPageSize={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            disabled={busy || !!error}
+          />
         )}
       </CardContent>
     </Card>

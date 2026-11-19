@@ -43,6 +43,10 @@ Buka `http://localhost:3000`. Siapkan dan jalankan backend di terminal terpisah 
 
 Variabel berawalan `NEXT_PUBLIC_` tersedia di browser. Simpan kredensial Accurate dan secret lainnya di backend. Setelah mengubah alamat API, restart server pengembangan; untuk deployment, buat ulang build dengan nilai yang sesuai.
 
+### Pengaturan perusahaan
+
+Super Admin dapat mengelola daftar perusahaan melalui **Settings → Perusahaan**. Koneksi Accurate, tujuan perusahaan, dan akun penerimaan mengikuti perusahaan yang dipilih pada pengaturan. Perusahaan baru memerlukan kredensialnya sendiri. Penghapusan meminta konfirmasi nama dan hanya tersedia untuk perusahaan tanpa riwayat upload/transaksi.
+
 ### Pembaruan data dan beban request
 
 Dashboard serta riwayat Faktur/Penerimaan Penjualan memuat data saat halaman dibuka atau filter berubah. Riwayat Faktur/Penerimaan juga menyediakan tombol **Muat ulang**. Bar filter dashboard hanya menampilkan pilihan cabang dan periode. Halaman tanpa proses aktif tidak melakukan polling berkala. Dashboard memakai status `processing`; invoice yang masih menunggu/draft tidak memicu polling cepat.

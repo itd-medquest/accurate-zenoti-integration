@@ -15,10 +15,18 @@ export function getReceiptOverview(filters: ReceiptFilters, signal?: AbortSignal
     if (value !== '') query.set(key, String(value));
   return api<ReceiptOverview>(`/receipts?${query}`, { signal });
 }
-export const getReceiptConfiguration = () => api<ReceiptConfiguration>('/receipts/configuration');
-export function searchReceiptAccounts(kind: 'bank' | 'fee', search: string, page: number) {
+export const getReceiptConfiguration = (branchId?: string) =>
+  api<ReceiptConfiguration>(
+    `/receipts/configuration${branchId ? `?${new URLSearchParams({ branchId })}` : ''}`,
+  );
+export function searchReceiptAccounts(
+  kind: 'bank' | 'fee',
+  search: string,
+  page: number,
+  branchId?: string,
+) {
   return api<{ database: { id: string; name: string }; items: ReceiptAccount[] }>(
-    `/receipts/accounts?${new URLSearchParams({ kind, search, page: String(page) })}`,
+    `/receipts/accounts?${new URLSearchParams({ kind, search, page: String(page), ...(branchId ? { branchId } : {}) })}`,
   );
 }
 export function saveReceiptMapping(

@@ -11,15 +11,20 @@ import { isLocalOnlyInvoice } from '../utils/redemption';
 export function ImportDeliveryNotice({
   batch,
   onConfigure,
+  branchId,
 }: {
   batch: Batch | null;
+  branchId?: string;
   onConfigure?: () => void;
 }) {
   const [status, setStatus] = useState<AccurateStatus | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
+    const controller = new AbortController();
+    setStatus(null);
+    setError('');
     let active = true;
-    getAccurateStatus()
+    getAccurateStatus(batch?.branchId ?? branchId, controller.signal)
       .then((result) => {
         if (active) setStatus(result);
       })
@@ -28,8 +33,9 @@ export function ImportDeliveryNotice({
       });
     return () => {
       active = false;
+      controller.abort();
     };
-  }, []);
+  }, [batch?.branchId, branchId]);
   const submittedSimulation = batch?.status === 'SUBMITTED' && batch.mode === 'simulation';
   const live = (batch?.status === 'SUBMITTED' ? batch.mode : status?.mode) === 'live';
   if (

@@ -130,6 +130,8 @@ export function Overview({
                       tick={{ fontSize: 11, fill: 'var(--muted)' }}
                     />
                     <Tooltip
+                      isAnimationActive={false}
+                      useTranslate3d
                       labelFormatter={(d) => dateOnly(String(d))}
                       contentStyle={{
                         borderRadius: 12,
