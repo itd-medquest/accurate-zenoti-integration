@@ -12,15 +12,15 @@ export async function loadSourcePdf(endpoint: string, signal: AbortSignal) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-export function getImportOverview(filters: ImportHistoryFilters) {
+export function getImportOverview(filters: ImportHistoryFilters, signal?: AbortSignal) {
   const query = new URLSearchParams({ page: String(filters.page), pageSize: '10' });
   for (const key of ['search', 'branch', 'dateFrom', 'dateTo', 'status'] as const)
     if (filters[key]) query.set(key, filters[key]);
-  return api<ImportOverview>(`/imports/overview?${query}`);
+  return api<ImportOverview>(`/imports/overview?${query}`, { signal });
 }
 
-export function getBatch(batchId: string) {
-  return api<Batch>(`/imports/${batchId}`);
+export function getBatch(batchId: string, signal?: AbortSignal) {
+  return api<Batch>(`/imports/${batchId}`, { signal });
 }
 
 export function reparseFile(batchId: string, fileId: string, input: { version: number }) {

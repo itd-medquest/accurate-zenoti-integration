@@ -43,6 +43,14 @@ Buka `http://localhost:3000`. Siapkan dan jalankan backend di terminal terpisah 
 
 Variabel berawalan `NEXT_PUBLIC_` tersedia di browser. Simpan kredensial Accurate dan secret lainnya di backend. Setelah mengubah alamat API, restart server pengembangan; untuk deployment, buat ulang build dengan nilai yang sesuai.
 
+### Pembaruan data dan beban request
+
+Dashboard serta riwayat Faktur/Penerimaan Penjualan memuat data saat halaman dibuka atau filter berubah. Riwayat Faktur/Penerimaan juga menyediakan tombol **Muat ulang**. Bar filter dashboard hanya menampilkan pilihan cabang dan periode. Halaman tanpa proses aktif tidak melakukan polling berkala. Dashboard memakai status `processing`; invoice yang masih menunggu/draft tidak memicu polling cepat.
+
+Pengiriman aktif diperiksa setiap 15 detik setelah request sebelumnya selesai, termasuk detail invoice, batch, dan penerimaan. Polling berhenti setelah proses selesai atau request gagal, dijeda saat tab tersembunyi, dan request dibatalkan ketika konteks halaman/filter berubah. Error memerlukan tindakan Muat ulang/Coba lagi; tidak ada retry otomatis tanpa batas. Riwayat Penerimaan juga dijeda saat halaman detailnya dibuka.
+
+Notifikasi dimuat saat komponen dibuka pertama kali, dropdown dibuka, halaman/pagination berubah, atau pengguna menekan Muat ulang; tidak ada polling latar setiap 30 detik. Perubahan dari pengguna lain ketika halaman sedang diam terlihat setelah refresh manual atau membuka ulang halaman. Timer jam WIB dan cooldown OTP hanya memperbarui tampilan, tanpa request API.
+
 ## Perintah
 
 Jalankan dari direktori repository frontend.

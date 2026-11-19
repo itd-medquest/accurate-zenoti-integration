@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { usePolledResource } from '@/hooks/use-polled-resource';
 import { format, parseISO } from 'date-fns';
 import { id as locale } from 'date-fns/locale';
 import {
@@ -720,27 +721,13 @@ export function ReceiptReview({
   onConfigure?: () => void;
   onInvoice?: (id: string) => void;
 }) {
-  const [data, setData] = useState<ReceiptDetail | null>(null);
-  const [error, setError] = useState('');
-  async function load() {
-    try {
-      setData(await getReceipt(id));
-      setError('');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Penerimaan gagal dimuat.');
-      throw cause;
-    }
-  }
-  useEffect(() => {
-    void load().catch(() => {});
-  }, [id]);
-  useEffect(() => {
-    if (!data || !['QUEUED', 'SENDING'].includes(data.draft.status)) return;
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') void load().catch(() => {});
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [data?.draft.status, id]);
+  const fetcher = useCallback((signal: AbortSignal) => getReceipt(id, signal), [id]);
+  const { data, error, load, read } = usePolledResource({
+    fetcher,
+    shouldPoll: sending,
+    delay: 0,
+    fallback: 'Penerimaan gagal dimuat.',
+  });
   return (
     <div className="flex flex-col gap-4">
       {error && (
@@ -766,7 +753,7 @@ export function ReceiptReview({
         <Form
           key={`${data.draft.id}:${data.draft.version}:${data.draft.status}`}
           data={data}
-          refresh={load}
+          refresh={read}
           onBack={onBack}
           onConfigure={onConfigure}
           onInvoice={onInvoice}
@@ -777,3 +764,5 @@ export function ReceiptReview({
     </div>
   );
 }
+
+const sending = (data: ReceiptDetail) => ['QUEUED', 'SENDING'].includes(data.draft.status);

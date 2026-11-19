@@ -311,6 +311,8 @@ for (const mobile of [false, true]) {
     await menu.getByRole('menuitem', { name: /INV-UI-001/ }).click();
     await expect(page.getByRole('dialog', { name: 'Detail invoice' })).toBeVisible();
     await page.keyboard.press('Escape');
+    const dismiss = page.getByRole('button', { name: 'Tutup notifikasi', exact: true });
+    if (await dismiss.isVisible()) await dismiss.click();
     await page.getByRole('button', { name: /^Notifikasi/ }).click();
     await menu.getByRole('menuitem', { name: 'Lihat detail notifikasi' }).click();
     await expect(page.getByRole('heading', { name: 'Notifikasi Anda.' })).toBeVisible();
