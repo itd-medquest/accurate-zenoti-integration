@@ -49,6 +49,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { money, dateTime } from '@/lib/format';
 import { receiptFee } from '../lib/amounts';
+import { ReceiptNumberDialog } from './receipt-number-dialog';
 import {
   getReceipt,
   saveReceipt,
@@ -76,6 +77,7 @@ function Form({
   const [paymentDate, setPaymentDate] = useState(draft.paymentDate);
   const [reference, setReference] = useState(draft.paymentReference);
   const [notes, setNotes] = useState(draft.notes);
+  const [manualNumber, setManualNumber] = useState(data.receiptNumber ?? '');
   const [dateOpen, setDateOpen] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -85,7 +87,9 @@ function Form({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const editable = draft.status === 'DRAFT' && data.validation.editable;
-  const number = editable ? invoice.number : (draft.targetNumber ?? draft.number);
+  const number = editable
+    ? (source.receiptNumber ?? manualNumber)
+    : (draft.targetNumber ?? draft.number);
   const mapping = configuration.mappings.find((row) => row.id === mappingId);
   const mappingChanged =
     !!mapping && mapping.id === draft.mappingId && mapping.version !== draft.mappingVersion;
@@ -192,12 +196,27 @@ function Form({
                 {[
                   ['Faktur Accurate', invoice.number],
                   ['Customer', invoice.customer],
-                  ['No. Bukti Accurate', number],
+                  ['No. Bukti Accurate (No. Receipt)', number],
                   ['Pembayaran sumber', sourceMethodLabels[source.method] ?? source.method],
                 ].map(([label, value]) => (
                   <div key={label} className="min-w-0">
                     <dt className="text-xs text-muted-foreground">{label}</dt>
-                    <dd className="m-0 mt-1 break-words font-medium">{value}</dd>
+                    <dd className="m-0 mt-1 flex flex-col items-start gap-2 break-words font-medium">
+                      {value ||
+                        (label === 'No. Bukti Accurate (No. Receipt)' ? 'Belum diisi' : '—')}
+                      {label === 'No. Bukti Accurate (No. Receipt)' &&
+                        editable &&
+                        data.actions.canSetNumber && (
+                          <ReceiptNumberDialog
+                            value={number}
+                            disabled={busy}
+                            onApply={(value) => {
+                              setManualNumber(value);
+                              setReviewed(false);
+                            }}
+                          />
+                        )}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -249,7 +268,7 @@ function Form({
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (!editable || !mappingId || !mapping) return;
+                  if (!editable || !mappingId || !mapping || !number) return;
                   void run(() =>
                     saveReceipt(draft.id, {
                       mappingId,
@@ -258,6 +277,7 @@ function Form({
                       paymentReference: reference,
                       notes,
                       version: draft.version,
+                      ...(data.actions.canSetNumber ? { receiptNumber: number } : {}),
                     }),
                   );
                 }}
@@ -468,7 +488,12 @@ function Form({
                           type="submit"
                           variant="outline"
                           disabled={
-                            busy || !mappingId || !reference.trim() || !paymentDate || unsupported
+                            busy ||
+                            !mappingId ||
+                            !reference.trim() ||
+                            !paymentDate ||
+                            !number ||
+                            unsupported
                           }
                         >
                           <Save data-icon="inline-start" />
@@ -557,7 +582,7 @@ function Form({
                     id="receipt-reviewed"
                     className="mt-0.5 shrink-0"
                     checked={reviewed}
-                    disabled={busy || dirty || !draft.mappingId || unsupported}
+                    disabled={busy || dirty || !draft.mappingId || !number || unsupported}
                     onCheckedChange={(value) => setReviewed(value === true)}
                   />
                   <FieldLabel
@@ -574,6 +599,7 @@ function Form({
                     dirty ||
                     !reviewed ||
                     !draft.mappingId ||
+                    !number ||
                     unsupported ||
                     !data.delivery.enabled
                   }
@@ -664,7 +690,7 @@ function Form({
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={leave} onOpenChange={setLeave}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)] data-[size=default]:sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Ada perubahan yang belum disimpan</AlertDialogTitle>
             <AlertDialogDescription>
@@ -672,9 +698,9 @@ function Form({
               di riwayat.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Lanjutkan review</AlertDialogCancel>
-            <AlertDialogAction onClick={() => leaveAction?.()}>
+          <AlertDialogFooter className="min-w-0">
+            <AlertDialogCancel className="w-full sm:w-auto">Lanjutkan review</AlertDialogCancel>
+            <AlertDialogAction className="w-full sm:w-auto" onClick={() => leaveAction?.()}>
               Lanjutkan tanpa menyimpan
             </AlertDialogAction>
           </AlertDialogFooter>

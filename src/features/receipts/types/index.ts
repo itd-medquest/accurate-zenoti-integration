@@ -87,8 +87,10 @@ export type ReceiptOverview = {
 };
 export type ReceiptDetail = {
   draft: ReceiptDraft;
+  receiptNumber: string | null;
   invoice: { number: string; customer: string; total: number };
   source: {
+    receiptNumber: string | null;
     method: string;
     paidAt: string;
     gross: number;
@@ -99,7 +101,7 @@ export type ReceiptDetail = {
   validation: { editable: boolean; message: string | null };
   delivery: { enabled: boolean; message: string };
   balance: { outstanding: number; checkedAt: string } | null;
-  actions: { canCheck: boolean; canReopen: boolean };
+  actions: { canCheck: boolean; canReopen: boolean; canSetNumber: boolean };
 };
 export type ReceiptFilters = {
   search: string;

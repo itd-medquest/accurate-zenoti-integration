@@ -309,7 +309,9 @@ export function ReceiptsView({
                     <TableCell>
                       <p className="font-medium">{row.invoiceNumber}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {row.draft?.targetNumber ?? row.draft?.number ?? row.branchName}
+                        {row.draft
+                          ? row.draft.targetNumber || row.draft.number || 'No. Receipt belum diisi'
+                          : row.branchName}
                       </p>
                     </TableCell>
                     <TableCell className="min-w-40 max-w-60 whitespace-normal break-words">

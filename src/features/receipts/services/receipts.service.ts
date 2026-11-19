@@ -50,6 +50,7 @@ export function saveReceipt(
   input: Pick<ReceiptDraft, 'paymentDate' | 'paymentReference' | 'notes' | 'version'> & {
     mappingId: string;
     mappingVersion: number;
+    receiptNumber?: string;
   },
 ) {
   return api<ReceiptDraft>(`/receipts/${id}`, { method: 'PUT', body: JSON.stringify(input) });
