@@ -1,28 +1,28 @@
 # intgrte — Frontend
 
-Platform untuk meninjau invoice Zenoti dan mengelola pengiriman Faktur Penjualan ke Accurate Online. Dibangun dengan Next.js App Router, React, TypeScript, Tailwind CSS, dan komponen shadcn/ui.
+A platform for reviewing Zenoti invoices and managing Sales Invoice submissions to Accurate Online. Built with Next.js App Router, React, TypeScript, Tailwind CSS, and shadcn/ui components.
 
-## Fitur
+## Features
 
-- Dashboard ringkasan invoice dan aktivitas sinkronisasi.
-- Riwayat upload dengan pencarian, filter perusahaan, tanggal, dan status invoice.
-- Upload PDF atau Excel, preview dokumen, koreksi item, mapping customer/item Accurate, serta pemeriksaan sebelum submit.
-- Penanda item redeemed dan Consultation gratis yang disimpan sebagai referensi tanpa dikirim ke Accurate.
-- Super Admin dan Finance dapat membuat customer Accurate dari hasil pencarian kosong saat review invoice. Nomor MPA dan master default diperiksa otomatis; setelah konfirmasi, customer dibuat lalu dipakai sebagai mapping invoice.
-- Pengaturan koneksi Accurate, perusahaan tujuan, pengguna, notifikasi, dan audit sesuai hak akses.
-- Tampilan responsif, mode terang/gelap, dan dukungan reduced motion.
+- Dashboard with invoice summaries and synchronization activity.
+- Upload history with search and filters for company, date, and invoice status.
+- PDF and Excel uploads, document previews, item corrections, Accurate customer/item mapping, and review before submission.
+- Redeemed items and complimentary Consultation services retained as references without being sent to Accurate.
+- Super Admin and Finance can create Accurate customers when a search returns no results during invoice review. MPA numbering and default master records are checked automatically; after confirmation, the customer is created and selected for invoice mapping.
+- Accurate connections, destination companies, users, notifications, and audit records managed according to access permissions.
+- Responsive layouts, light/dark themes, and reduced-motion support.
 
-Upload dan preview tidak langsung mengirim transaksi. Pengiriman faktur dilakukan setelah pemeriksaan dan submit; hasilnya mengikuti konfigurasi backend. Halaman Penerimaan Penjualan menyediakan daftar pembayaran, filter, review, simpan draft, saldo Accurate, dan pengiriman setelah konfirmasi Finance. Mapping akun kas/bank dan biaya diatur pada tab Akun penerimaan di Settings. Status diperbarui otomatis; hasil pengiriman yang belum pasti dapat diperiksa di Accurate tanpa membuat transaksi kedua. Modul Command menampilkan Coming Soon.
+Uploading and previewing documents does not send transactions immediately. Invoices are sent after review and submission; delivery behavior follows the backend configuration. The Sales Receipts page provides payment history, filters, review, draft saving, Accurate balances, and submission after Finance confirmation. Cash/bank and expense account mappings are managed in the receipt accounts tab in Settings. Status updates are automatic; uncertain delivery results can be checked in Accurate without creating a second transaction. The Command module displays Coming Soon.
 
-## Persyaratan
+## Requirements
 
-- Node.js **22.16 atau lebih baru** dan npm.
-- Backend intgrte yang aktif; alamat lokal default `http://localhost:4000`.
-- Google Chrome untuk pengujian browser dengan Playwright.
+- Node.js **22.16 or later** and npm.
+- A running intgrte backend; the default local address is `http://localhost:4000`.
+- Google Chrome for Playwright browser tests.
 
-## Menjalankan secara lokal
+## Local Setup
 
-Clone kedua repository sebagai folder `frontend` dan `backend` yang berdampingan. Susunan ini juga digunakan oleh pengujian integrasi.
+Clone both repositories into sibling folders named `frontend` and `backend`. The integration tests also use this directory layout.
 
 ```powershell
 git clone https://github.com/itd-medquest/accurate-zenoti-integration.git frontend
@@ -33,48 +33,48 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-Buka `http://localhost:3000`. Siapkan dan jalankan backend di terminal terpisah mengikuti README backend. Backend menggunakan MySQL 8.4 LTS. Akun lokal mengikuti seed admin atau import akun lama di backend; tampilan dan alur frontend tidak berubah.
+Open `http://localhost:3000`. Set up and start the backend in a separate terminal by following its README. The backend uses MySQL 8.4 LTS. Local accounts come from the backend admin seed or a legacy account import; the frontend interface and workflows remain unchanged.
 
-### Konfigurasi
+### Configuration
 
-| Variabel              | Kegunaan                            | Default lokal           |
-| --------------------- | ----------------------------------- | ----------------------- |
-| `NEXT_PUBLIC_API_URL` | Alamat backend tanpa akhiran `/api` | `http://localhost:4000` |
+| Variable              | Purpose                                   | Local default           |
+| --------------------- | ----------------------------------------- | ----------------------- |
+| `NEXT_PUBLIC_API_URL` | Backend address without a trailing `/api` | `http://localhost:4000` |
 
-Variabel berawalan `NEXT_PUBLIC_` tersedia di browser. Simpan kredensial Accurate dan secret lainnya di backend. Setelah mengubah alamat API, restart server pengembangan; untuk deployment, buat ulang build dengan nilai yang sesuai.
+Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. Keep Accurate credentials and other secrets in the backend. Restart the development server after changing the API address; for deployment, rebuild the application with the appropriate value.
 
-### Pengaturan perusahaan
+### Company Settings
 
-Super Admin dapat mengelola daftar perusahaan melalui **Settings → Perusahaan**. Koneksi Accurate, tujuan perusahaan, dan akun penerimaan mengikuti perusahaan yang dipilih pada pengaturan. Perusahaan baru memerlukan kredensialnya sendiri. Penghapusan meminta konfirmasi nama dan hanya tersedia untuk perusahaan tanpa riwayat upload/transaksi.
+Super Admin can manage companies through **Settings → Companies**. Accurate connections, company destinations, and receipt accounts follow the company selected in Settings. Each new company requires its own credentials. Deletion requires company-name confirmation and is available only for companies without upload or transaction history.
 
-### Pembaruan data dan beban request
+### Data Refresh and Request Load
 
-Dashboard serta riwayat Faktur/Penerimaan Penjualan memuat data saat halaman dibuka atau filter berubah. Riwayat Faktur/Penerimaan juga menyediakan tombol **Muat ulang**. Bar filter dashboard hanya menampilkan pilihan cabang dan periode. Halaman tanpa proses aktif tidak melakukan polling berkala. Dashboard memakai status `processing`; invoice yang masih menunggu/draft tidak memicu polling cepat.
+The dashboard and Sales Invoice/Sales Receipt history load data when the page opens or filters change. Both history pages also provide a **Reload** button. The dashboard filter bar contains only branch and period selectors. Pages without active processing do not poll periodically. Dashboard polling uses the `processing` status; pending or draft invoices do not trigger frequent polling.
 
-Pengiriman aktif diperiksa setiap 15 detik setelah request sebelumnya selesai, termasuk detail invoice, batch, dan penerimaan. Polling berhenti setelah proses selesai atau request gagal, dijeda saat tab tersembunyi, dan request dibatalkan ketika konteks halaman/filter berubah. Error memerlukan tindakan Muat ulang/Coba lagi; tidak ada retry otomatis tanpa batas. Riwayat Penerimaan juga dijeda saat halaman detailnya dibuka.
+Active deliveries are checked every 15 seconds after the previous request completes, including invoice, batch, and receipt details. Polling stops when processing finishes or a request fails, pauses while the tab is hidden, and cancels requests when the page or filter context changes. Errors require a Reload/Retry action; there are no unlimited automatic retries. Sales Receipt history polling also pauses while its detail page is open.
 
-Notifikasi dimuat saat komponen dibuka pertama kali, dropdown dibuka, halaman/pagination berubah, atau pengguna menekan Muat ulang; tidak ada polling latar setiap 30 detik. Perubahan dari pengguna lain ketika halaman sedang diam terlihat setelah refresh manual atau membuka ulang halaman. Timer jam WIB dan cooldown OTP hanya memperbarui tampilan, tanpa request API.
+Notifications load when the component first opens, the dropdown opens, the page or pagination changes, or the user selects Reload; there is no background polling every 30 seconds. Changes made by other users while a page is idle appear after a manual refresh or reopening the page. The WIB clock and OTP cooldown timers update the interface without making API requests.
 
-## Perintah
+## Commands
 
-Jalankan dari direktori repository frontend.
+Run these commands from the frontend repository directory.
 
-| Perintah            | Kegunaan                                 |
-| ------------------- | ---------------------------------------- |
-| `npm ci`            | Menginstal dependency sesuai lockfile    |
-| `npm run dev`       | Menjalankan server pengembangan          |
-| `npm run typecheck` | Memeriksa TypeScript                     |
-| `npm run build`     | Membuat build produksi                   |
-| `npm start`         | Menjalankan hasil build produksi         |
-| `npm run test:e2e`  | Menjalankan pengujian browser Playwright |
+| Command             | Purpose                                |
+| ------------------- | -------------------------------------- |
+| `npm ci`            | Install dependencies from the lockfile |
+| `npm run dev`       | Start the development server           |
+| `npm run typecheck` | Check TypeScript                       |
+| `npm run build`     | Create a production build              |
+| `npm start`         | Serve the production build             |
+| `npm run test:e2e`  | Run Playwright browser tests           |
 
-Aset PDF.js disiapkan otomatis oleh `predev` dan `prebuild`, sehingga folder vendor hasil generate tidak perlu disimpan di Git. Alternatif untuk pengguna Windows: `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`.
+PDF.js assets are prepared automatically by `predev` and `prebuild`, so generated vendor directories do not need to be committed to Git. Windows users can also run `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`.
 
-## Pengujian browser
+## Browser Tests
 
-Pengujian membuat pengguna, upload, dan transaksi uji. Gunakan fixture terisolasi berikut dengan repository backend di `../backend` dan `.env` backend yang sudah disiapkan. Fixture menggunakan schema MySQL sementara dan respons Accurate tiruan. Siapkan `TEST_DATABASE_URL` pada environment backend atau `.env.test.local` privat sebelum menjalankan fixture; database aplikasi tidak dipakai untuk pengujian.
+The tests create test users, uploads, and transactions. Use the isolated fixture below with the backend repository at `../backend` and its `.env` configured. The fixture uses a temporary MySQL schema and mocked Accurate responses. Set `TEST_DATABASE_URL` in the backend environment or a private `.env.test.local` before starting the fixture; tests do not use the application database.
 
-1. Dari backend, buat template anonim dan jalankan fixture API:
+1. From the backend, generate anonymous templates and start the API fixture:
 
    ```powershell
    npx tsx scripts/prepare-import-assets.ts
@@ -82,14 +82,14 @@ Pengujian membuat pengguna, upload, dan transaksi uji. Gunakan fixture terisolas
    npx tsx test/helpers/browser-server.ts
    ```
 
-2. Dari frontend, jalankan web pengujian di terminal lain:
+2. From the frontend, start the test application in another terminal:
 
    ```powershell
    $env:NEXT_PUBLIC_API_URL = 'http://localhost:4001'
    npm run dev -- --port 3001
    ```
 
-3. Dari frontend, jalankan Playwright di terminal lain:
+3. From the frontend, run Playwright in another terminal:
 
    ```powershell
    $env:NEXT_PUBLIC_API_URL = 'http://localhost:4001'
@@ -98,33 +98,33 @@ Pengujian membuat pengguna, upload, dan transaksi uji. Gunakan fixture terisolas
    npm run test:e2e
    ```
 
-Template Excel dan screenshot pengujian saat ini ditulis ke `../../docs/` relatif terhadap frontend/backend. Folder tersebut dibuat sebagai artefak lokal di luar kedua repository. Sejumlah skenario memerlukan kondisi awal fixture tertentu; restart fixture ketika menjalankan skenario yang memerlukan konfigurasi awal yang bersih.
+Excel templates and test screenshots are currently written to `../../docs/`, relative to the frontend/backend directories. These folders are local artifacts outside both repositories. Some scenarios require a particular initial fixture state; restart the fixture when running scenarios that need a clean configuration.
 
-Untuk pengujian tambah customer, aktifkan `$env:CUSTOMER_CREATION_FIXTURE = 'true'` pada terminal fixture backend dan terminal Playwright, lalu jalankan `npx playwright test tests/e2e/accurate-customer.spec.ts`. Gunakan fixture baru; jalankan pengujian alur faktur lainnya dengan fixture default tanpa flag ini.
+For customer creation tests, set `$env:CUSTOMER_CREATION_FIXTURE = 'true'` in both the backend fixture and Playwright terminals, then run `npx playwright test tests/e2e/accurate-customer.spec.ts`. Use a fresh fixture; run other invoice workflow tests with the default fixture and without this flag.
 
-## Struktur project
+## Project Structure
 
 ```text
 src/
-  app/                Routing, layout, dan global styles
-  features/           UI, hooks, services, dan types per fitur
-  components/ui/      Komponen dasar yang digunakan bersama
-  components/common/  Shell workspace dan navigasi
-  hooks/              Hooks lintas fitur
-  lib/                Konfigurasi library dan helper
-  services/           HTTP client bersama
-  styles/             Token tema dan styling workspace
-  types/              Kontrak bersama
-tests/                Pengujian browser dan fixture
-public/               Aset web publik
-assets/               Sumber aset branding
-scripts/              Persiapan aset dan utilitas lokal
+  app/                Routing, layouts, and global styles
+  features/           Feature-specific UI, hooks, services, and types
+  components/ui/      Shared UI primitives
+  components/common/  Workspace shell and navigation
+  hooks/              Cross-feature hooks
+  lib/                Configured libraries and helpers
+  services/           Shared HTTP client
+  styles/             Theme tokens and workspace styles
+  types/              Shared contracts
+tests/                Browser tests and fixtures
+public/               Public web assets
+assets/               Branding source assets
+scripts/              Asset preparation and local utilities
 ```
 
-Gunakan komponen bersama dan token tema yang sudah tersedia. Warna utama intgrte adalah `#5343df` di mode terang maupun gelap; aksen kuning `#ffde59`.
+Reuse the existing shared components and theme tokens. The primary intgrte color is `#5343df` in both light and dark themes; the yellow accent is `#ffde59`.
 
-Standar bentuk hover, highlight keyboard, dan sudut menu/list mengikuti batas komponen. Lihat [panduan interaction geometry](docs/design-system.md) untuk aturan komponen mandiri, baris dalam container, inset, tabel, dan pengujiannya.
+Hover shapes, keyboard highlights, and menu/list corners follow component boundaries. See the [interaction geometry guide](docs/design-system.md) for standalone controls, rows within containers, insets, tables, and regression coverage.
 
 ## Git Rules
 
-Buat branch untuk setiap perubahan, jalankan pemeriksaan yang relevan, lalu ajukan pull request dengan ringkasan perubahan dan hasil validasi. Pertahankan `package-lock.json` agar instalasi tim konsisten. Gunakan `.env.example` sebagai acuan konfigurasi; nilai environment lokal, data upload, dan hasil build/testing tidak disertakan dalam commit.
+Create a branch for each change, run the relevant checks, and open a pull request with a change summary and validation results. Keep `package-lock.json` to ensure consistent installations across the team. Use `.env.example` as the configuration reference; exclude local environment values, uploaded data, and build/test artifacts from commits.
