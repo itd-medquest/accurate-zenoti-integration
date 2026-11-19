@@ -197,7 +197,25 @@ test('customer response lost in browser can be checked without a new request ide
   expect(ids).toHaveLength(2);
   expect(ids[0]).toBe(ids[1]);
 });
-test('finance sees the empty result without a customer creation action', async ({ page }) => {
+test('finance can create and map a customer from empty results without Settings access', async ({ page }) => {
   const { field } = await setup(page, false, 'finance');
-  await expect(field.getByRole('button', { name: 'Tambah customer', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  await field.getByRole('button', { name: 'Tambah customer', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Tambah customer Accurate', exact: true });
+  await expect(form.getByLabel('ID pelanggan', { exact: true })).toHaveValue(/^MPA-\d+$/);
+  const name = `Finance Customer ${randomUUID().slice(0, 8)}`;
+  await form.getByLabel('Nama customer', { exact: true }).fill(name);
+  let creates = 0;
+  page.on('request', (request) => {
+    if (/\/customer$/.test(request.url()) && request.method() === 'POST') creates++;
+  });
+  await form.getByRole('button', { name: 'Buat dan gunakan customer', exact: true }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Ya, buat customer', exact: true })
+    .click();
+  await expect(form).toHaveCount(0);
+  await expect(field.getByText(name, { exact: true })).toBeVisible();
+  await expect(field.getByText('Tersimpan', { exact: true })).toBeVisible();
+  expect(creates).toBe(1);
 });

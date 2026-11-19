@@ -8,7 +8,7 @@ Platform untuk meninjau invoice Zenoti dan mengelola pengiriman Faktur Penjualan
 - Riwayat upload dengan pencarian, filter perusahaan, tanggal, dan status invoice.
 - Upload PDF atau Excel, preview dokumen, koreksi item, mapping customer/item Accurate, serta pemeriksaan sebelum submit.
 - Penanda item redeemed dan Consultation gratis yang disimpan sebagai referensi tanpa dikirim ke Accurate.
-- Super Admin dapat membuat customer Accurate dari hasil pencarian kosong saat review invoice. Nomor MPA dan master default diperiksa otomatis; setelah konfirmasi, customer dibuat lalu dipakai sebagai mapping invoice.
+- Super Admin dan Finance dapat membuat customer Accurate dari hasil pencarian kosong saat review invoice. Nomor MPA dan master default diperiksa otomatis; setelah konfirmasi, customer dibuat lalu dipakai sebagai mapping invoice.
 - Pengaturan koneksi Accurate, perusahaan tujuan, pengguna, notifikasi, dan audit sesuai hak akses.
 - Tampilan responsif, mode terang/gelap, dan dukungan reduced motion.
 

@@ -89,23 +89,19 @@ export function AccurateMappingPanel({
               selected={valid ? selection?.customer : undefined}
               disabled={busy}
               onSelect={(id) => save('customer', id)}
-              emptyAction={
-                onConfigure
-                  ? (finish) => (
-                      <CreateAccurateCustomer
-                        batchId={batch.id}
-                        rowId={row.id}
-                        version={batch.version}
-                        initialName={row.candidate.customer}
-                        disabled={busy}
-                        onSelect={async (id) => {
-                          await save('customer', id);
-                          finish();
-                        }}
-                      />
-                    )
-                  : undefined
-              }
+              emptyAction={(finish) => (
+                <CreateAccurateCustomer
+                  batchId={batch.id}
+                  rowId={row.id}
+                  version={batch.version}
+                  initialName={row.candidate.customer}
+                  disabled={busy}
+                  onSelect={async (id) => {
+                    await save('customer', id);
+                    finish();
+                  }}
+                />
+              )}
             />
             {chargeableItems(row.candidate.items).map((item) => (
               <AccurateMasterPicker
