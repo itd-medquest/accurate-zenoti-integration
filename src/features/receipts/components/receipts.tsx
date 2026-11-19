@@ -85,7 +85,7 @@ export function ReceiptsView({
   }, [selected]);
   const [opening, setOpening] = useState('');
   const [actionError, setActionError] = useState('');
-  const { data, busy, error, load } = useReceiptOverview(filters);
+  const { data, busy, error, load } = useReceiptOverview(filters, selected === null);
   const update = (patch: Partial<ReceiptFilters>) =>
     setFilters((previous) => ({ ...previous, ...patch, page: 1 }));
   async function open(row: ReceiptRow) {
@@ -106,7 +106,6 @@ export function ReceiptsView({
         id={selected}
         onBack={() => {
           setSelected(null);
-          void load();
         }}
         onConfigure={onConfigure}
         onInvoice={onInvoice}

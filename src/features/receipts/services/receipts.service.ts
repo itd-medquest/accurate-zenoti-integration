@@ -9,11 +9,11 @@ import type {
   ReceiptOverview,
 } from '../types';
 
-export function getReceiptOverview(filters: ReceiptFilters) {
+export function getReceiptOverview(filters: ReceiptFilters, signal?: AbortSignal) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters))
     if (value !== '') query.set(key, String(value));
-  return api<ReceiptOverview>(`/receipts?${query}`);
+  return api<ReceiptOverview>(`/receipts?${query}`, { signal });
 }
 export const getReceiptConfiguration = () => api<ReceiptConfiguration>('/receipts/configuration');
 export function searchReceiptAccounts(kind: 'bank' | 'fee', search: string, page: number) {
@@ -35,7 +35,8 @@ export function prepareReceipt(invoiceId: string, sourceKey: string) {
     body: JSON.stringify({ invoiceId, sourceKey }),
   });
 }
-export const getReceipt = (id: string) => api<ReceiptDetail>(`/receipts/${id}`);
+export const getReceipt = (id: string, signal?: AbortSignal) =>
+  api<ReceiptDetail>(`/receipts/${id}`, { signal });
 export function saveReceipt(
   id: string,
   input: Pick<ReceiptDraft, 'paymentDate' | 'paymentReference' | 'notes' | 'version'> & {

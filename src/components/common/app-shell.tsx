@@ -4,6 +4,7 @@ import { AccountMenu } from './account-menu';
 import { ThemeToggle } from './theme-toggle';
 import { DashboardGreeting } from '@/features/dashboard/components/dashboard-greeting';
 import { useWorkspaceSidebar } from '@/hooks/use-workspace-sidebar';
+import { useConditionalPolling } from '@/hooks/use-conditional-polling';
 import { BrandLogo } from '@/components/common/brand-logo';
 import { type ModuleId } from '@/components/common/module-switch';
 import { Loading } from '@/components/ui';
@@ -120,7 +121,6 @@ export function AppShell() {
     text: string;
     error: boolean;
   } | null>(null);
-  const requestRef = useRef(0);
   const contentRef = useRef<HTMLElement>(null);
   const { dashboard, setDashboard, loaded, load } = useDashboard({
     actor,
@@ -128,14 +128,12 @@ export function AppShell() {
     branch,
     days,
     setError,
-    requestRef,
-    enabled: activeModule === 'recap',
+    enabled: activeModule === 'recap' && !detail,
   });
   const admin = actor?.role === 'super_admin';
   const operate = admin || actor?.role === 'finance';
   useEffect(() => {
     const expire = () => {
-      ++requestRef.current;
       setActor(null);
       setDetail(null);
       setDashboard(null);
@@ -153,21 +151,27 @@ export function AppShell() {
       .catch((e) => setError(e.message));
   }, [actor]);
   const closeDetail = useCallback(() => setDetail(null), []);
-  useEffect(() => {
-    if (!detail || detail.syncStatus !== 'PROCESSING') return;
-    const timer = setInterval(() => {
-      getInvoice(detail.id)
-        .then(setDetail)
-        .catch(() => {});
-    }, 1800);
-    return () => clearInterval(timer);
-  }, [detail?.id, detail?.syncStatus]);
-  async function run(task: () => Promise<unknown>, message: string) {
+  const refreshDetail = useCallback(
+    async (signal: AbortSignal) => {
+      if (!detail?.id) return;
+      try {
+        const next = await getInvoice(detail.id, signal);
+        if (!signal.aborted) setDetail(next);
+      } catch (cause) {
+        if (!signal.aborted)
+          setError(cause instanceof Error ? cause.message : 'Detail invoice gagal dimuat.');
+        throw cause;
+      }
+    },
+    [detail?.id],
+  );
+  useConditionalPolling(!busy && detail?.syncStatus === 'PROCESSING', refreshDetail);
+  async function run(task: () => Promise<unknown>, message: string, refreshDashboard = true) {
     setBusy(true);
     try {
       await task();
       setToast({ text: message, error: false });
-      await load();
+      if (refreshDashboard) await load();
     } catch (e) {
       setToast({ text: e instanceof Error ? e.message : 'Tindakan gagal.', error: true });
     } finally {
@@ -185,7 +189,6 @@ export function AppShell() {
     try {
       const result = await signOut();
       if (result.error) throw new Error('Gagal keluar.');
-      ++requestRef.current;
       setActor(null);
       setDashboard(null);
       setDetail(null);
@@ -202,7 +205,7 @@ export function AppShell() {
     }
   }
   async function openInvoice(i: Invoice) {
-    await run(async () => setDetail(await getInvoice(i.id)), 'Detail invoice dimuat.');
+    await run(async () => setDetail(await getInvoice(i.id)), 'Detail invoice dimuat.', false);
   }
   async function sync(id: string) {
     await run(async () => {
@@ -421,10 +424,6 @@ export function AppShell() {
                   <SelectFieldOption value="90">90 hari terakhir</SelectFieldOption>
                   <SelectFieldOption value="365">1 tahun terakhir</SelectFieldOption>
                 </SelectField>
-                <div className="filter-meta flex items-center gap-1.5 ml-auto text-[10px] text-muted-foreground mobile:w-full mobile:mt-1.25 mobile:mr-0 mobile:mb-0 mobile:ml-0">
-                  <span className="live-dot inline-block h-1.5 w-1.5 bg-[#53b696] rounded-full shadow-[0_0_0_3px_#53b69612] shrink-0" />{' '}
-                  Pembaruan otomatis · WIB
-                </div>
               </div>
             </div>
           )}
@@ -475,7 +474,11 @@ export function AppShell() {
               branches={branches}
               onConfigure={admin ? () => navigate('settings') : undefined}
               onInvoice={(id) =>
-                void run(async () => setDetail(await getInvoice(id)), 'Detail invoice dimuat.')
+                void run(
+                  async () => setDetail(await getInvoice(id)),
+                  'Detail invoice dimuat.',
+                  false,
+                )
               }
             />
           )}

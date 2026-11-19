@@ -63,7 +63,8 @@ async function mockApi(
     mappingAttempts = 0,
     queuedReads = 0,
     checks = 0,
-    reopens = 0;
+    reopens = 0,
+    detailReads = 0;
   const config: ReceiptConfiguration = {
     database: { id: '99', name: 'Perusahaan Uji' },
     banks: ['BCA', 'BNI'],
@@ -227,6 +228,7 @@ async function mockApi(
       return json(current);
     }
     if (path === '/receipts/' + draftId && method === 'GET') {
+      detailReads++;
       if (current.status === 'QUEUED' && queuedReads++ >= 1)
         current = {
           ...current,
@@ -361,7 +363,15 @@ async function mockApi(
     return json({}, 404);
   });
   return {
-    state: () => ({ saved, remoteSubmits, mappingAttempts, observedFilters, checks, reopens }),
+    state: () => ({
+      saved,
+      remoteSubmits,
+      mappingAttempts,
+      observedFilters,
+      checks,
+      reopens,
+      detailReads,
+    }),
     restoreBalance: () => {
       balanceUnavailable = false;
     },
@@ -450,6 +460,7 @@ for (const outcome of ['success', 'uncertain', 'rejected'] as const)
   test(`receipt submission confirms exact amounts and handles ${outcome} without duplicate submits`, async ({
     page,
   }) => {
+    await page.clock.install();
     const fixture = await mockApi(page, false, outcome);
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -471,6 +482,7 @@ for (const outcome of ['success', 'uncertain', 'rejected'] as const)
         exact: true,
       }),
     ).toBeVisible();
+    await page.clock.runFor(15_100);
     if (outcome === 'uncertain') {
       const check = page.getByRole('button', { name: 'Periksa hasil di Accurate', exact: true });
       await expect(check).toBeVisible({ timeout: 12000 });
@@ -500,8 +512,31 @@ for (const outcome of ['success', 'uncertain', 'rejected'] as const)
         page.getByText('Penerimaan terverifikasi di Accurate.', { exact: true }),
       ).toBeVisible({ timeout: 12000 });
     expect(fixture.state().remoteSubmits).toBe(1);
+    const reads = fixture.state().detailReads;
+    const historyReads = fixture.state().observedFilters.length;
+    await page.clock.fastForward(120_000);
+    expect(fixture.state().detailReads).toBe(reads);
+    expect(fixture.state().observedFilters.length).toBe(historyReads);
     expect(errors).toEqual([]);
   });
+
+test('draft receipt details make no periodic requests and suspend background history polling', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const fixture = await mockApi(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await expect(page.getByText('Sisa tagihan Accurate', { exact: true })).toBeVisible();
+  const reads = fixture.state().detailReads;
+  const historyReads = fixture.state().observedFilters.length;
+  await page.clock.fastForward(120_000);
+  expect(fixture.state().detailReads).toBe(reads);
+  expect(fixture.state().observedFilters.length).toBe(historyReads);
+  await page.getByRole('button', { name: 'Kembali ke riwayat', exact: true }).click();
+  await expect.poll(() => fixture.state().observedFilters.length).toBe(historyReads + 1);
+});
 
 test('a blocked draft displays its saved account and fee snapshot after mapping changes', async ({
   page,

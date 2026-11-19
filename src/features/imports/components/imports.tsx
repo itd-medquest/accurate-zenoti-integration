@@ -31,6 +31,7 @@ import { SourcePreview } from '@/features/imports/components/source-preview';
 import { ImportHistoryView } from './import-history';
 import { NewBatchDialog } from './new-batch-dialog';
 import { ProgressiveList } from '@/components/ui/progressive-list';
+import { useConditionalPolling } from '@/hooks/use-conditional-polling';
 import {
   getBatch,
   markReviewed,
@@ -137,17 +138,30 @@ export function ImportsView({
   useEffect(() => {
     if (!branch && branches.some((b) => b.active)) setBranch(branches.find((b) => b.active)!.id);
   }, [branch, branches]);
-  useEffect(() => {
-    if (screen !== 'workflow' || !batch || batch.status !== 'SUBMITTED') return;
-    const timer = setInterval(
-      () =>
-        getBatch(batch.id)
-          .then(setBatch)
-          .catch((e) => setError(e.message)),
-      4000,
-    );
-    return () => clearInterval(timer);
-  }, [screen, batch?.id, batch?.status]);
+  const refreshBatch = useCallback(
+    async (signal: AbortSignal) => {
+      if (!batch?.id) return;
+      try {
+        const next = await getBatch(batch.id, signal);
+        if (!signal.aborted) setBatch(next);
+      } catch (cause) {
+        if (!signal.aborted)
+          setError(cause instanceof Error ? cause.message : 'Batch gagal dimuat.');
+        throw cause;
+      }
+    },
+    [batch?.id],
+  );
+  useConditionalPolling(
+    !busy &&
+      screen === 'workflow' &&
+      batch?.status === 'SUBMITTED' &&
+      batch.rows.some(
+        (row) =>
+          row.status !== 'DUPLICATE' && ['PENDING', 'PROCESSING'].includes(row.syncStatus ?? ''),
+      ),
+    refreshBatch,
+  );
   const eligible = batch?.rows.filter((r) => !r.errors.length && r.status !== 'CONFLICT') ?? [];
   const duplicateCount = eligible.filter((r) => r.status === 'DUPLICATE').length;
   const localSaveCount = eligible.filter(
