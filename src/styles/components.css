@@ -1075,26 +1075,6 @@
   .workspace-switch[aria-expanded='true'] {
     @apply border-brand;
   }
-  .module-options button {
-    @apply flex items-center gap-2 w-full border-0 rounded-[7px] py-2.5 px-1.25 bg-control text-left text-[inherit];
-  }
-  .module-options button:hover,
-  .module-options button:focus-visible,
-  .module-options button[aria-checked='true'] {
-    @apply bg-accent/60;
-  }
-  .module-options button > span:nth-child(2) {
-    @apply flex flex-col flex-1 gap-1;
-  }
-  .module-options strong {
-    @apply text-[11px];
-  }
-  .module-options small {
-    @apply text-[9px] text-muted-foreground;
-  }
-  .module-options svg {
-    @apply text-brand shrink-0;
-  }
   .import-table-totals tr {
     @apply bg-accent/60;
   }

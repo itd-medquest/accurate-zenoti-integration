@@ -60,7 +60,7 @@ export function NotificationMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={10}
-        className="w-96 max-w-[calc(100vw-2rem)] p-2 motion-reduce:animate-none"
+        className="w-96 max-w-[calc(100vw-2rem)] [--hover-inset:--spacing(2)] motion-reduce:animate-none"
         aria-label="Notifikasi invoice"
         aria-labelledby={undefined}
       >

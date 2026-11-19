@@ -32,6 +32,8 @@
     --brand-blue: #5343df;
     --brand-ink: #4434c5;
     --brand-soft: #efedff;
+    --accent: var(--brand-soft);
+    --accent-foreground: var(--brand-ink);
     --highlight: #ffde59;
     --highlight-ink: #25243d;
     --control: #ffffffb3;
@@ -74,6 +76,9 @@
     --line: #34415b99;
     --brand-ink: color-mix(in srgb, var(--brand-blue) 36%, white);
     --brand-soft: color-mix(in srgb, var(--brand-blue) 18%, var(--background));
+    /* Dark interaction highlights use the canonical brand color directly. */
+    --accent: var(--brand-blue);
+    --accent-foreground: #ffffff;
     --control: #26334be6;
     --control-border: #ffffff0d;
     --control-hover: #31405c;
@@ -190,9 +195,6 @@
   }
   tbody tr:last-child td {
     @apply border-b-0;
-  }
-  tbody tr:hover {
-    @apply bg-muted/50;
   }
   td strong {
     @apply font-semibold;

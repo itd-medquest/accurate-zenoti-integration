@@ -123,6 +123,8 @@ scripts/              Persiapan aset dan utilitas lokal
 
 Gunakan komponen bersama dan token tema yang sudah tersedia. Warna utama intgrte adalah `#5343df` di mode terang maupun gelap; aksen kuning `#ffde59`.
 
+Standar bentuk hover, highlight keyboard, dan sudut menu/list mengikuti batas komponen. Lihat [panduan interaction geometry](docs/design-system.md) untuk aturan komponen mandiri, baris dalam container, inset, tabel, dan pengujiannya.
+
 ## Git Rules
 
 Buat branch untuk setiap perubahan, jalankan pemeriksaan yang relevan, lalu ajukan pull request dengan ringkasan perubahan dan hasil validasi. Pertahankan `package-lock.json` agar instalasi tim konsisten. Gunakan `.env.example` sebagai acuan konfigurasi; nilai environment lokal, data upload, dan hasil build/testing tidak disertakan dalam commit.

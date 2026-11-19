@@ -1,0 +1,58 @@
+/* Interaction geometry is shared by pointer, keyboard, checked and expanded states.
+   Standalone controls paint their own border box. Contiguous rows inherit only
+   the corners they actually touch, through any structural groups in the list.
+   Popup surfaces retain a gutter, with inner corners reduced by that inset
+   (see docs/design-system.md). */
+@layer utilities {
+  :is([data-hover-list], [data-hover-group]) > :is([data-hover-item], [data-hover-group]) {
+    border-radius: inherit;
+    background-clip: padding-box;
+  }
+
+  /* One shared token controls the popup's real padding and its inner radius.
+     Further nested groups inherit that reduced radius without subtracting twice. */
+  [data-hover-list][data-hover-inset] > :is([data-hover-item], [data-hover-group]) {
+    border-radius: max(0px, calc(var(--hover-radius) - var(--hover-inset)));
+  }
+
+  :is([data-hover-list], [data-hover-group]) > [hidden] {
+    display: none;
+  }
+
+  /* Labels, separators and disabled rows occupy space and therefore count as
+     edges too. Removed/hidden rows and portal bookkeeping do not. */
+  :is([data-hover-list], [data-hover-group])
+    > :is([data-hover-item], [data-hover-group]):not(
+      :nth-child(
+        1 of :not([hidden], [data-hover-ignore], [data-radix-popper-content-wrapper], script, style)
+      )
+    ) {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  :is([data-hover-list], [data-hover-group])
+    > :is([data-hover-item], [data-hover-group]):not(
+      :nth-last-child(
+        1 of :not([hidden], [data-hover-ignore], [data-radix-popper-content-wrapper], script, style)
+      )
+    ) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* Hover and keyboard focus use the same cell shape. No background on table
+     headers/footers; card/scroll boundaries clip rows at actual outer corners. */
+  tbody > tr:hover,
+  [data-slot='table-body'] > [data-slot='table-row']:focus-within {
+    background-color: color-mix(in srgb, var(--surface-muted) 50%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button,
+    [data-hover-item],
+    [data-slot='table-row'] {
+      transition: none;
+    }
+  }
+}
