@@ -38,9 +38,9 @@ for (const mobile of [false, true]) {
     await expect(page.getByText('Coming soon', { exact: true })).toBeVisible();
     await expect(page.locator('.dashboard-toolbar')).toHaveCount(0);
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi' }).click();
-    await expect(page.locator('.sidebar > nav').first().getByRole('button')).toHaveCount(1);
+    await expect(page.locator('.sidebar > nav').first().getByRole('link')).toHaveCount(1);
     await expect(
-      page.locator('.sidebar > nav').first().getByRole('button', { name: 'Dashboard' }),
+      page.locator('.sidebar > nav').first().getByRole('link', { name: 'Dashboard' }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Pilih modul: Command' }).click();
     await page.getByRole('menuitemradio', { name: /Easy Recap/ }).click();

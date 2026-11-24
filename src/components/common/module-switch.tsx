@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
-export type ModuleId = 'recap' | 'command';
+import type { ModuleId } from '@/types/navigation';
+export type { ModuleId } from '@/types/navigation';
 const modules = [
   { id: 'recap', name: 'Easy Recap', subtitle: 'Invoice & Reconciliation', letter: 'E' },
   { id: 'command', name: 'Command', subtitle: 'Executive Insights', letter: 'C' },

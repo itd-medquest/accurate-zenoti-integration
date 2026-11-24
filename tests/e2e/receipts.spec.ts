@@ -7,7 +7,7 @@ import type {
   ReceiptDraft,
   ReceiptRow,
   ReceiptStatus,
-} from '../../src/features/receipts/types';
+} from '../../src/features/easyrecap/receipts/types';
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001';
 const branch = '00000000-0000-4000-8000-000000000001';
@@ -28,7 +28,7 @@ for (const role of ['finance', 'super_admin'] as const) {
     await mockApi(page, false, 'success', { role });
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     const warning = page.getByRole('alert').filter({
       hasText:
@@ -428,7 +428,7 @@ for (const mobile of [false, true])
     if (!mobile)
       await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await expect(page.getByRole('table', { name: 'Riwayat penerimaan penjualan' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -517,7 +517,7 @@ for (const outcome of ['success', 'uncertain', 'rejected'] as const)
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('/');
-    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     await expect(page.getByText('Sisa tagihan Accurate', { exact: true })).toBeVisible();
     await selectOption(page.getByLabel('Bank dan metode pembayaran', { exact: true }), mappingId);
@@ -578,7 +578,7 @@ test('draft receipt details make no periodic requests and suspend background his
   await page.clock.install();
   const fixture = await mockApi(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+  await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
   await page.getByRole('button', { name: 'Review', exact: true }).click();
   await expect(page.getByText('Sisa tagihan Accurate', { exact: true })).toBeVisible();
   const reads = fixture.state().detailReads;
@@ -595,7 +595,7 @@ test('a blocked draft displays its saved account and fee snapshot after mapping 
 }) => {
   await mockApi(page, true);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+  await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
   await page.getByRole('button', { name: 'Buka', exact: true }).click();
   await expect(
     page.getByRole('alert').filter({ hasText: 'Pembayaran sumber berubah' }),
@@ -617,7 +617,7 @@ test('shared calendar preserves the existing invoice upload-period field and sup
 }) => {
   await mockApi(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   const period = page.getByRole('button', { name: 'Periode upload', exact: true });
   await expect(period).toHaveText('Semua waktu');
   await period.click();
@@ -635,7 +635,7 @@ test('a balance lookup error allows mapping and draft entry, but keeps delivery 
 }) => {
   const fixture = await mockApi(page, false, 'success', { balanceUnavailable: true });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+  await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
   await page.getByRole('button', { name: 'Review', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Pengiriman menunggu' })).toBeVisible();
   await expect(page.getByLabel('Bank dan metode pembayaran', { exact: true })).toBeEnabled();
@@ -660,7 +660,7 @@ test('No. Bukti uses the source receipt number and a legacy draft must be saved 
 }) => {
   const fixture = await mockApi(page, false, 'success', { legacyNumber: true });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+  await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
   await page.getByRole('button', { name: 'Review', exact: true }).click();
   const number = page
     .locator('dl > div')
@@ -700,7 +700,7 @@ for (const mobile of [false, true])
     if (!mobile)
       await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     const number = page
       .locator('dl > div')
@@ -781,7 +781,7 @@ for (const sourceMethod of ['card', 'bank'] as const)
   }) => {
     await mockApi(page, false, 'success', { sourceMethod });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     const control = page.getByLabel('Bank dan metode pembayaran', { exact: true });
     await expect(control).toBeEnabled();
@@ -818,7 +818,7 @@ test('receipt mapping keeps an unsaved selection after failure and shows persist
   const fixture = await mockApi(page);
   await page.setViewportSize({ width: 1500, height: 1000 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('tab', { name: 'Akun penerimaan', exact: true }).click();
   await selectOption(page.getByLabel('Bank / penyedia', { exact: true }), 'BNI');
   await page.getByRole('textbox', { name: 'Akun kas/bank penerima', exact: true }).fill('110102');
@@ -922,7 +922,7 @@ for (const mobile of [false, true])
     if (!mobile)
       await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await page.getByRole('textbox', { name: 'Cari penerimaan', exact: true }).fill('Customer');
     await selectOption(page.getByRole('combobox', { name: 'Perusahaan', exact: true }), branch);
     const cards = page.getByLabel('Ringkasan status penerimaan', { exact: true });

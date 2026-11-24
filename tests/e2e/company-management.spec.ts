@@ -155,7 +155,7 @@ for (const mobile of [false, true]) {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi' }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.getByRole('tab', { name: 'Perusahaan', exact: true }).click();
     await expect(page.getByText('Daftar perusahaan', { exact: true })).toBeVisible();
     await expect(

@@ -4,7 +4,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { receiptPdf } from '../fixtures/receipt-fixture';
-import type { Batch } from '../../src/features/imports/types';
+import type { Batch } from '../../src/features/easyrecap/imports/types';
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -35,7 +35,7 @@ for (const mobile of [false, true]) {
     await page.setViewportSize({ width: mobile ? 390 : 1600, height: 1000 });
     await login(page);
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi' }).click();
-    await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+    await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
     await expect(
       page.getByRole('heading', { name: 'Faktur Penjualan.', exact: true }),
     ).toBeVisible();

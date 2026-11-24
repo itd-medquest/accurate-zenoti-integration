@@ -31,7 +31,7 @@ test('bulk PDFs are reviewed before submit and source totals stay identical', as
   test.setTimeout(90000);
   await page.setViewportSize({ width: 1440, height: 1050 });
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const prefix = `E2E-${Date.now()}`;
   const numbers = [`${prefix}-1`, `${prefix}-2`];
@@ -115,7 +115,7 @@ test('upload area keeps content contained on desktop and mobile without page ove
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Upload invoice dalam satu batch' }),
@@ -165,7 +165,7 @@ test('Sales Accrual source can be inspected on desktop and mobile, then wrong up
   test.setTimeout(90000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page
     .getByLabel('Pilih file invoice')
@@ -229,7 +229,7 @@ test('Accounting completes missing package services with exact original totals',
   sheet.getCell('C5').value = number;
   sheet.getCell('S5').value = number;
   sheet.getCell('I5').value = 'Custom Package Contoh';
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.getByLabel('Pilih file invoice').setInputFiles({
     name: 'sales-package.xlsx',
@@ -321,7 +321,7 @@ test('invoice codes group source rows, pagination bounds rendering, and review u
   }
   s.getCell('A36').value = 'Total: ';
   s.getCell('M36').value = { formula: 'SUM(M5:M35)', result: 6200000 };
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.getByLabel('Pilih file invoice').setInputFiles({
     name: 'paginated-sales.xlsx',
@@ -363,7 +363,7 @@ test('duplicate-only batch can be confirmed without sending again and inspection
 }) => {
   test.setTimeout(90000);
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const number = `DUPLICATE-UI-${Date.now()}`,
     buffer = receiptPdf(randomUUID(), number);
@@ -431,7 +431,7 @@ test('upload shows transfer and processing progress, then colored cards with pre
   test.setTimeout(90000);
   await page.setViewportSize({ width: 1440, height: 1050 });
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const batchId = randomUUID(),
     fileIds = [randomUUID(), randomUUID()];
@@ -644,7 +644,7 @@ test('upload failure keeps selected files and reports an error without a success
   page,
 }) => {
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.route(`${api}/api/imports`, async (route) => {
     if (route.request().method() !== 'POST') {
@@ -681,7 +681,7 @@ test('reviewed icon persists and updating inspection requires confirmation befor
   page,
 }) => {
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const number = `REVIEW-${Date.now()}`;
   await page.getByLabel('Pilih file invoice').setInputFiles({
@@ -746,7 +746,7 @@ test('reviewed icon persists and updating inspection requires confirmation befor
     page.getByRole('button', { name: 'Sudah diperiksa Accounting', exact: true }),
   ).toHaveCount(1);
   await page.reload();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page
     .locator('.import-history')
     .getByRole('button', { name: /^Buka batch / })
@@ -762,7 +762,7 @@ test('item correction UI cancels safely, confirms reviewed edits, and resets ins
 }) => {
   await page.setViewportSize({ width: 1800, height: 1000 });
   await login(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const number = `ITEM-${Date.now()}`;
   await page.getByLabel('Pilih file invoice').setInputFiles({
@@ -1000,7 +1000,7 @@ test('failed PDF can be read again, then OCR preview shows fractional unit price
       },
     }),
   );
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.getByLabel('Pilih file invoice').setInputFiles({
     name: 'scan.pdf',
@@ -1146,7 +1146,7 @@ test('package issues use passive notices while matching automatic details need n
       body: receiptPdf(randomUUID(), 'MATCHED-PACKAGE'),
     }),
   );
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.getByLabel('Pilih file invoice').setInputFiles({
     name: 'sample-package.pdf',
@@ -1308,7 +1308,7 @@ test('add item is above the table, saves a versioned addition and opens its pagi
       },
     });
   });
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.getByLabel('Pilih file invoice').setInputFiles({
     name: 'source.pdf',
@@ -1474,7 +1474,7 @@ test('delete icon confirms with Ya or Batal, retains failed attempts and clamps 
       },
     });
   });
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await page.getByLabel('Pilih file invoice').setInputFiles({
     name: 'source.pdf',

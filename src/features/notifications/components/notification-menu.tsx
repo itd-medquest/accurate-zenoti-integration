@@ -20,7 +20,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Invoice } from '@/features/invoices/types';
+import type { Invoice } from '@/features/easyrecap/invoices/types';
 import { useNotifications } from '../hooks/use-notifications';
 import { notificationStatus } from '../utils/notification-status';
 

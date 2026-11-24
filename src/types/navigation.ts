@@ -7,3 +7,9 @@ export type View =
   | 'audit'
   | 'account'
   | 'notifications';
+
+export type ModuleId = 'recap' | 'command';
+export type WorkspaceRoutes = {
+  prefix: string;
+  pages: Partial<Record<View, string>>;
+};

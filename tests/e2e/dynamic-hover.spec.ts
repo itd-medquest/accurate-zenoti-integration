@@ -309,7 +309,7 @@ test('table hover and keyboard focus preserve square inner rows and standalone b
 
 test('invoice filters and calendar day/range hover use their own geometry', async ({ page }) => {
   const errors = await workspace(page);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   const status = page.getByRole('combobox', { name: 'Status invoice', exact: true });
   await status.click();
   const list = page.getByRole('listbox');

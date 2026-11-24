@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { selectOption } from '../helpers/select-option';
-import type { Batch } from '../../src/features/imports/types';
-import type { Invoice } from '../../src/features/invoices/types';
+import type { Batch } from '../../src/features/easyrecap/imports/types';
+import type { Invoice } from '../../src/features/easyrecap/invoices/types';
 
 type Screen = 'dashboard' | 'imports' | 'receipts';
 const paths = { dashboard: '/dashboard', imports: '/imports/overview', receipts: '/receipts' };
@@ -208,7 +208,7 @@ async function fixture(
   const count = (screen: Screen) => counts.get(paths[screen]) ?? 0;
   async function open(screen: Screen) {
     if (screen !== 'dashboard')
-      await page.getByRole('button', { name: names[screen], exact: true }).click();
+      await page.getByRole('link', { name: names[screen], exact: true }).click();
     await expect.poll(() => count(screen)).toBe(1);
     if (screen === 'dashboard') {
       await expect(page.getByLabel('Filter periode')).toBeEnabled();
@@ -312,7 +312,7 @@ test('overview requests are serial, pause in hidden tabs, and stop when navigati
   f.state.processing = 0;
   release();
   await expect(page.getByRole('button', { name: 'Muat ulang', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: names.receipts, exact: true }).click();
+  await page.getByRole('link', { name: names.receipts, exact: true }).click();
   await expect.poll(() => f.count('receipts')).toBe(1);
   await page.clock.fastForward(120_000);
   expect(f.count('imports')).toBe(2);
@@ -329,7 +329,7 @@ test('filter changes fetch fresh data without restarting an idle polling loop', 
   await expect.poll(() => f.count('dashboard')).toBe(2);
   await page.clock.fastForward(120_000);
   expect(f.count('dashboard')).toBe(2);
-  await page.getByRole('button', { name: names.imports, exact: true }).click();
+  await page.getByRole('link', { name: names.imports, exact: true }).click();
   await expect.poll(() => f.count('imports')).toBe(1);
   await page.getByLabel('Cari riwayat', { exact: true }).fill('INV-SEARCH');
   await expect.poll(() => f.count('imports')).toBe(2);

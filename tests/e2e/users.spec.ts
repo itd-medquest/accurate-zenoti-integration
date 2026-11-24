@@ -56,7 +56,7 @@ for (const mobile of [false, true]) {
       }
     });
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi' }).click();
-    await page.getByRole('button', { name: 'User Management', exact: true }).click();
+    await page.getByRole('link', { name: 'User Management', exact: true }).click();
     await expect(
       page.getByRole('button', { name: `Hapus pengguna ${actor.name}`, exact: true }),
     ).toBeDisabled();

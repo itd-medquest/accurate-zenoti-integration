@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Batch, ImportHistoryEntry, ImportSummary } from '../../src/features/imports/types';
-import type { addItem } from '../../src/features/imports/services/imports.service';
+import type { Batch, ImportHistoryEntry, ImportSummary } from '../../src/features/easyrecap/imports/types';
+import type { addItem } from '../../src/features/easyrecap/imports/services/imports.service';
 import { receiptPdf } from '../fixtures/receipt-fixture';
 import { selectOption } from '../helpers/select-option';
 import { twoPagePdf } from '../fixtures/two-page-pdf';
@@ -237,7 +237,7 @@ async function openReview(page: Page, mobile = false, dark = false) {
   await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
   if (dark) await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
   if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Buka batch review-b' }).click();
   await page.getByRole('button', { name: 'Periksa INV-UI-001', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -630,7 +630,7 @@ for (const mobile of [false, true])
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-    await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+    await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
     await page.getByRole('textbox', { name: 'Cari riwayat', exact: true }).fill('TEST');
     await selectOption(
       page.getByRole('combobox', { name: 'Perusahaan', exact: true }),
@@ -691,7 +691,7 @@ test('workflow checks completed stages, keeps failed delivery status, and provid
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const steps = page.getByRole('list', { name: 'Tahapan upload invoice', exact: true });
   await expect(steps.locator('[data-state="complete"]')).toHaveCount(0);

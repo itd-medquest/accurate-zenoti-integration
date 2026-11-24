@@ -3,8 +3,8 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { receiptPdf } from '../fixtures/receipt-fixture';
-import { dashboardMessages } from '../../src/features/dashboard/components/dashboard-greeting';
-import type { Batch } from '../../src/features/imports/types';
+import { dashboardMessages } from '../../src/features/easyrecap/dashboard/components/dashboard-greeting';
+import type { Batch } from '../../src/features/easyrecap/imports/types';
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const env = Object.fromEntries(

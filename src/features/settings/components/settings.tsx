@@ -13,7 +13,7 @@ import { type Settings } from '@/features/settings/types';
 import { AccurateConnection } from './accurate-connection';
 import { AccurateDestinations } from './accurate-destinations';
 import { CompanyManagement } from './company-management';
-import { ReceiptAccountSettings } from '@/features/receipts/components/receipt-account-settings';
+import { ReceiptAccountSettings } from '@/features/easyrecap/receipts/components/receipt-account-settings';
 import { type Branch } from '@/types';
 import {
   ArrowRight,

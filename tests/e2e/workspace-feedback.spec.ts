@@ -95,7 +95,16 @@ for (const dark of [false, true]) {
     const chart = page.locator('.trend-chart');
     await expect(chart.locator('.recharts-area')).toHaveCount(2);
     await page.evaluate(() => document.fonts.ready);
-    const before = await chart.screenshot({ animations: 'disabled' });
+    // Wait for the existing chart reveal before comparing hover pixels.
+    await chart.evaluate(async (element) => {
+      await Promise.all(
+        element.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
+    const before = await chart.screenshot({
+      animations: 'disabled',
+      path: `tmp/chart-before-hover-${dark ? 'dark' : 'light'}.png`,
+    });
     const box = await chart.boundingBox();
     if (!box) throw new Error('Chart has no visible bounds');
     for (let index = 0; index < 12; index++) {
@@ -177,7 +186,7 @@ for (const mobile of [false, true]) {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-    await page.getByRole('button', { name: 'Audit Log', exact: true }).click();
+    await page.getByRole('link', { name: 'Audit Log', exact: true }).click();
     const table = page.getByRole('table', { name: 'Audit aktivitas' });
     await expect(table.getByRole('row')).toHaveCount(26);
     await expect(table).toContainText('INV-103');
@@ -229,7 +238,7 @@ test('audit request failures stop without repeated requests and allow an explici
   await page.clock.install();
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
-  await page.getByRole('button', { name: 'Audit Log', exact: true }).click();
+  await page.getByRole('link', { name: 'Audit Log', exact: true }).click();
   await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'Audit sementara tidak tersedia.',
   );

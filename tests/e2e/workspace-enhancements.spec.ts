@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { greetingAt } from '../../src/features/dashboard/utils/greeting';
-import type { Invoice } from '../../src/features/invoices/types';
+import { greetingAt } from '../../src/features/easyrecap/dashboard/utils/greeting';
+import type { Invoice } from '../../src/features/easyrecap/invoices/types';
 import { selectOption } from '../helpers/select-option';
 
 test.use({ timezoneId: 'America/Los_Angeles' });
@@ -232,11 +232,11 @@ for (const mobile of [false, true]) {
     }
     await expect(page.getByRole('alert', { name: 'Mode pengiriman Accurate' })).toHaveCount(0);
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi' }).click();
-    await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+    await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
     await page.getByRole('button', { name: 'Penerimaan Penjualan', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Penerimaan Penjualan.' })).toBeVisible();
     if (mobile) await page.getByRole('button', { name: 'Buka navigasi' }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
     const panel = page.getByRole('tabpanel');
     await expect(page.getByLabel('API Token', { exact: true })).toBeVisible();
     const token = page.getByLabel('API Token', { exact: true });
@@ -354,7 +354,7 @@ test('notification empty and failure states can recover without navigating away'
   await expect(page.getByRole('heading', { name: 'Notifikasi Anda.' })).toBeVisible();
   await expect(page.getByText('Belum ada notifikasi', { exact: true })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }),
+    page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }),
   ).toHaveCount(0);
 });
 

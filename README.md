@@ -10,6 +10,7 @@ A platform for reviewing Zenoti invoices and managing Sales Invoice submissions 
 - Redeemed items and complimentary Consultation services retained as references without being sent to Accurate.
 - Super Admin and Finance can create Accurate customers when a search returns no results during invoice review. MPA numbering and default master records are checked automatically; after confirmation, the customer is created and selected for invoice mapping.
 - Accurate connections, destination companies, users, notifications, and audit records managed according to access permissions.
+- Workspace-prefixed page URLs that support direct links, browser refresh, and Back/Forward navigation.
 - Responsive layouts, light/dark themes, and reduced-motion support.
 
 Uploading and previewing documents does not send transactions immediately. Invoices are sent after review and submission; delivery behavior follows the backend configuration. The Sales Receipts page provides payment history, filters, review, draft saving, Accurate balances, and submission after Finance confirmation. Cash/bank and expense account mappings are managed in the receipt accounts tab in Settings. Status updates are automatic; uncertain delivery results can be checked in Accurate without creating a second transaction. The Command module displays Coming Soon.
@@ -107,7 +108,11 @@ For customer creation tests, set `$env:CUSTOMER_CREATION_FIXTURE = 'true'` in bo
 ```text
 src/
   app/                Routing, layouts, and global styles
-  features/           Feature-specific UI, hooks, services, and types
+  features/
+    easyrecap/        Dashboard, imports, invoices, and receipts
+    command/          Command workspace UI and route definitions
+    auth/, settings/, users/, audit/, notifications/
+                      Features shared by the workspace shell
   components/ui/      Shared UI primitives
   components/common/  Workspace shell and navigation
   hooks/              Cross-feature hooks
@@ -124,6 +129,8 @@ scripts/              Asset preparation and local utilities
 Reuse the existing shared components and theme tokens. The primary intgrte color is `#5343df` in both light and dark themes; the yellow accent is `#ffde59`.
 
 Hover shapes, keyboard highlights, and menu/list corners follow component boundaries. See the [interaction geometry guide](docs/design-system.md) for standalone controls, rows within containers, insets, tables, and regression coverage.
+
+Page routes live under `app/(workspace)/easyrecap/` and `app/(workspace)/command/`. Feature implementations remain outside `app/`. See the [workspace routing guide](docs/routing.md) for the URL map, authorization behavior, and deployment requirements.
 
 ## Git Rules
 
