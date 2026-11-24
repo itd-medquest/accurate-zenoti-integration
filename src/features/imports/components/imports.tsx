@@ -28,6 +28,11 @@ import { AddImportItem } from '@/features/imports/components/add-import-item';
 import { EditableImportItem } from '@/features/imports/components/editable-import-item';
 import { PackageDetailNotice } from '@/features/imports/components/package-detail-notice';
 import { SourcePreview } from '@/features/imports/components/source-preview';
+import { InvoiceReviewLayout } from './invoice-review-layout';
+import { ImportItemMapping, ImportItemMappingStatus } from './import-item-mapping';
+import { AccurateMasterPicker } from '@/features/invoices/components/accurate-master-picker';
+import { importAccurateSelection, saveImportMapping } from '../services/accurate-mapping.service';
+import { importReviewNotes } from '../utils/review-notes';
 import { ImportHistoryView } from './import-history';
 import { NewBatchDialog } from './new-batch-dialog';
 import { ProgressiveList } from '@/components/ui/progressive-list';
@@ -60,7 +65,7 @@ import {
   Plus,
   RefreshCw,
   Send,
-  ShieldCheck,
+  CircleX,
   Trash2,
   UploadCloud,
 } from 'lucide-react';
@@ -114,6 +119,7 @@ export function ImportsView({
   const [drag, setDrag] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [mappingItemId, setMappingItemId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState('UNKNOWN');
   const [previouslyReviewed, setPreviouslyReviewed] = useState(false);
@@ -127,6 +133,7 @@ export function ImportsView({
   const closeDetail = useCallback(() => {
     setDetailId(null);
     setEditingItemId(null);
+    setMappingItemId(null);
     setDeletingItemId(null);
   }, []);
   const cancelItemDelete = useCallback(() => {
@@ -179,6 +186,11 @@ export function ImportsView({
       .filter((r) => selection.includes(r.id) && r.status !== 'DUPLICATE')
       .reduce((n, r) => n + r.candidate.total, 0) ?? 0;
   const detail = batch?.rows.find((r) => r.id === detailId);
+  const detailNotes = detail ? importReviewNotes(detail, draftStatus) : [];
+  const detailSelection = batch && detail ? importAccurateSelection(batch, detail) : undefined;
+  const mappableItemIds = new Set(
+    detail ? chargeableItems(detail.candidate.items).map((item) => item.id) : [],
+  );
   const itemToDelete = detail?.candidate.items.find((item) => item.id === deletingItemId);
   const previewFile = batch?.files.find((f) => f.id === previewFileId);
   const deleteFile = batch?.files.find((f) => f.id === deleteFileId);
@@ -204,6 +216,7 @@ export function ImportsView({
   }
   function openDetail(row: Row) {
     setEditingItemId(null);
+    setMappingItemId(null);
     setDeletingItemId(null);
     setDraftStatus(row.candidate.businessStatus);
     setPreviouslyReviewed(inspectionComplete(row));
@@ -1243,6 +1256,14 @@ export function ImportsView({
           wide={!itemToDelete}
           className={itemToDelete ? 'import-item-delete-modal' : 'import-review-modal'}
           onClose={itemToDelete ? cancelItemDelete : closeDetail}
+          onPointerDownOutside={(event) => {
+            // The resize library handles pointer events before Radix's React capture handler.
+            // Keep a press on the divider inside this dialog without disabling outside dismissal.
+            const target = event.detail.originalEvent.target;
+            if (target instanceof Element && target.closest('[data-slot="resizable-handle"]')) {
+              event.preventDefault();
+            }
+          }}
         >
           {itemToDelete ? (
             <>
@@ -1297,9 +1318,22 @@ export function ImportsView({
             </>
           ) : (
             <>
-              <div className="import-review-columns grid grid-cols-[minmax(0,_1.1fr)_minmax(0,_1fr)] min-h-0 flex-1 overflow-hidden tablet:block tablet:overflow-auto">
+              <InvoiceReviewLayout
+                source={
+                  batch.files.find((f) => f.id === detail.fileId) && (
+                    <SourcePreview
+                      key={detail.id}
+                      rowId={detail.id}
+                      batchId={batch.id}
+                      file={batch.files.find((f) => f.id === detail.fileId)!}
+                      sourceRows={detail.candidate.sourceRows}
+                      sourceSheet={detail.candidate.sourceSheet}
+                    />
+                  )
+                }
+              >
                 <div className="import-detail pt-0 pr-5.75 pb-5 pl-5.75 mobile:pt-0 mobile:pr-4 mobile:pb-4.5 mobile:pl-4">
-                  <div className="detail-header pt-6.25 pr-6.5 pb-5 pl-6.5 flex items-center justify-between gap-3.75 mobile:py-5 mobile:px-4.5">
+                  <div className="detail-header pt-6.25 pr-6.5 pb-5 pl-6.5 flex flex-wrap items-center justify-between gap-3.75 mobile:py-5 mobile:px-4.5">
                     <div>
                       <span className="eyebrow font-bold tracking-[1.7px] text-brand flex items-center gap-2.25 text-[10px]">
                         PREVIEW {detail.candidate.sourceFormat}
@@ -1338,6 +1372,11 @@ export function ImportsView({
                         </SelectField>
                       </label>
                       <p>Pilih Status Pembayaran/Invoices</p>
+                      {draftStatus !== detail.candidate.businessStatus && (
+                        <p role="status">
+                          Perubahan status akan disimpan saat pemeriksaan diselesaikan.
+                        </p>
+                      )}
                     </div>
                   </div>
                   {error && (
@@ -1380,7 +1419,9 @@ export function ImportsView({
                       </AlertDescription>
                     </Alert>
                   )}
-                  {batch.status === 'PREVIEW' && <ImportValidationNotice row={detail} />}
+                  {batch.status === 'PREVIEW' && (
+                    <ImportValidationNotice row={detail} businessStatus={draftStatus} />
+                  )}
                   <RedemptionNotice candidate={detail.candidate} />
                   {batch.mode === 'live' && !isLocalOnlyInvoice(detail.candidate) && (
                     <AccurateMappingPanel
@@ -1465,6 +1506,7 @@ export function ImportsView({
                       onClick={() => {
                         setError('');
                         setEditingItemId('__new__');
+                        setMappingItemId(null);
                       }}
                       variant="outline"
                     >
@@ -1472,12 +1514,28 @@ export function ImportsView({
                       Tambah item
                     </Button>
                   </div>
+                  {(batch.mode === 'simulation' || !batch.accurateDestination) &&
+                    !isLocalOnlyInvoice(detail.candidate) && (
+                      <Alert
+                        variant="info"
+                        className="mb-4"
+                        aria-label="Ketersediaan mapping Accurate"
+                      >
+                        <AlertDescription>
+                          {batch.mode === 'simulation'
+                            ? 'Mode Simulasi: mapping tersimpan tetap ditampilkan untuk pemeriksaan. Untuk mengubah mapping dan mengirim faktur aktual, Super Admin perlu memilih mode Aktual di Settings.'
+                            : 'Tujuan Accurate belum tersedia. Minta Super Admin mengatur tujuan perusahaan di Settings agar mapping dapat dipilih.'}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   {editingItemId === '__new__' && (
                     <AddImportItem
                       key={detail.id}
                       batchId={batch.id}
                       rowId={detail.id}
                       version={batch.version}
+                      branchId={batch.branchId}
+                      mappingEnabled={batch.mode === 'live' && !!batch.accurateDestination}
                       previouslyReviewed={previouslyReviewed}
                       disabled={busy}
                       onCancel={() => setEditingItemId(null)}
@@ -1523,7 +1581,81 @@ export function ImportsView({
                                 editing={editingItemId === i.id}
                                 disabled={busy || (!!editingItemId && editingItemId !== i.id)}
                                 previouslyReviewed={previouslyReviewed}
-                                onEdit={() => setEditingItemId(i.id)}
+                                onEdit={() => {
+                                  setEditingItemId(i.id);
+                                  setMappingItemId(null);
+                                }}
+                                mappingSummary={
+                                  <ImportItemMapping
+                                    name={i.name}
+                                    redemptionNote={i.redemptionNote}
+                                    selected={detailSelection?.items[i.id]}
+                                    excluded={
+                                      i.redeemed
+                                        ? 'redeemed'
+                                        : !mappableItemIds.has(i.id)
+                                          ? 'consultation'
+                                          : undefined
+                                    }
+                                    editable={
+                                      batch.status === 'PREVIEW' &&
+                                      batch.mode === 'live' &&
+                                      !!batch.accurateDestination
+                                    }
+                                    destinationAvailable={!!batch.accurateDestination}
+                                    expanded={mappingItemId === i.id}
+                                    disabled={busy || !!editingItemId}
+                                    onToggle={() =>
+                                      setMappingItemId((current) =>
+                                        current === i.id ? null : i.id,
+                                      )
+                                    }
+                                  />
+                                }
+                                mappingStatus={
+                                  <ImportItemMappingStatus
+                                    selected={detailSelection?.items[i.id]}
+                                    destinationAvailable={!!batch.accurateDestination}
+                                    excluded={
+                                      i.redeemed
+                                        ? 'redeemed'
+                                        : !mappableItemIds.has(i.id)
+                                          ? 'consultation'
+                                          : undefined
+                                    }
+                                  />
+                                }
+                                mappingEditor={
+                                  batch.mode === 'live' &&
+                                  batch.accurateDestination &&
+                                  batch.status === 'PREVIEW' &&
+                                  mappingItemId === i.id && (
+                                    <AccurateMasterPicker
+                                      kind="item"
+                                      branchId={batch.branchId}
+                                      label={i.name}
+                                      initialSearch={i.name.slice(0, 100)}
+                                      disabled={busy}
+                                      onSelect={async (masterId) => {
+                                        setBusy(true);
+                                        try {
+                                          adopt(
+                                            await saveImportMapping(
+                                              batch,
+                                              detail,
+                                              'item',
+                                              masterId,
+                                              i.id,
+                                            ),
+                                          );
+                                          setMappingItemId(null);
+                                        } finally {
+                                          setBusy(false);
+                                        }
+                                      }}
+                                    />
+                                  )
+                                }
                                 onDelete={() => {
                                   setError('');
                                   setDeletingItemId(i.id);
@@ -1643,20 +1775,22 @@ export function ImportsView({
                     </p>
                   ))}
                 </div>
-                {batch.files.find((f) => f.id === detail.fileId) && (
-                  <SourcePreview
-                    key={detail.id}
-                    rowId={detail.id}
-                    batchId={batch.id}
-                    file={batch.files.find((f) => f.id === detail.fileId)!}
-                    sourceRows={detail.candidate.sourceRows}
-                    sourceSheet={detail.candidate.sourceSheet}
-                  />
-                )}
-              </div>
+              </InvoiceReviewLayout>
               <div className="modal-footer py-4.5 px-6.5 border-t border-solid border-t-line flex justify-between items-center gap-3.75 mobile:py-3.75 mobile:px-4.5 mobile:flex-wrap">
-                <span>
-                  <ShieldCheck size={15} /> Total harus identik dengan invoice sumber
+                <span
+                  role="status"
+                  aria-live="polite"
+                  className="import-review-notes"
+                  data-state={detailNotes.length ? 'pending' : 'complete'}
+                >
+                  {detailNotes.length ? (
+                    <CircleX size={15} aria-hidden="true" />
+                  ) : (
+                    <CheckCircle2 size={15} aria-hidden="true" />
+                  )}
+                  {detailNotes.length
+                    ? `${detailNotes.length} Catatan Perlu Ditinjau`
+                    : 'Semua Catatan Sudah Ditinjau'}
                 </span>
                 <Button
                   className="button inline-flex items-center justify-center whitespace-nowrap primary"

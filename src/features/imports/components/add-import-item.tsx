@@ -9,10 +9,14 @@ import { money } from '@/lib/format';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import type { Batch } from '../types';
+import type { AccurateMaster } from '@/features/invoices/types/accurate';
+import { AccurateMasterPicker } from '@/features/invoices/components/accurate-master-picker';
 export function AddImportItem({
   batchId,
   rowId,
   version,
+  branchId,
+  mappingEnabled = false,
   previouslyReviewed,
   disabled,
   onCancel,
@@ -22,6 +26,8 @@ export function AddImportItem({
   batchId: string;
   rowId: string;
   version: number;
+  branchId?: string;
+  mappingEnabled?: boolean;
   previouslyReviewed: boolean;
   disabled: boolean;
   onCancel: () => void;
@@ -38,6 +44,7 @@ export function AddImportItem({
     reason: '',
   });
   const [error, setError] = useState('');
+  const [master, setMaster] = useState<AccurateMaster>();
   const input = {
     name: draft.name.trim(),
     quantity: Number(draft.quantity),
@@ -50,7 +57,16 @@ export function AddImportItem({
   )
     ? calculateNewItem(input)
     : null;
+  const needsMapping =
+    mappingEnabled &&
+    !(
+      input.name.toLowerCase() === 'consultation' &&
+      input.unitPrice === 0 &&
+      input.discountPercent === 0 &&
+      input.taxPercent === 0
+    );
   const valid =
+    (!needsMapping || !!master) &&
     !!result &&
     !!input.name &&
     input.name.length <= 200 &&
@@ -84,6 +100,7 @@ export function AddImportItem({
             ...input,
             kind: draft.kind,
             reason: draft.reason.trim(),
+            ...(needsMapping && master ? { accurateMasterId: master.id } : {}),
           });
           onSaved(next);
         } catch (e) {
@@ -126,8 +143,8 @@ export function AddImportItem({
           </Field>
           {(['quantity', 'unitPrice', 'discountPercent', 'taxPercent'] as const).map(
             (key, index) => (
-              <Field>
-                <FieldLabel key={key} className="flex w-full flex-col items-stretch gap-2">
+              <Field key={key}>
+                <FieldLabel className="flex w-full flex-col items-stretch gap-2">
                   {['Qty', 'Harga awal / unit', 'Diskon (%)', 'Pajak (%)'][index]}
                   <Input
                     aria-label={
@@ -167,6 +184,18 @@ export function AddImportItem({
             </FieldLabel>
           </Field>
         </div>
+        {needsMapping && (
+          <AccurateMasterPicker
+            kind="item"
+            branchId={branchId}
+            label="Mapping Accurate item baru"
+            draftSelection
+            initialSearch={draft.name.trim().slice(0, 100)}
+            selected={master}
+            disabled={disabled}
+            onSelect={async (_id, selected) => setMaster(selected)}
+          />
+        )}
         <p>
           Setelah diskon: <strong>{display(result?.net)}</strong> · Pajak:{' '}
           <strong>{display(result?.tax)}</strong> · Final item:{' '}

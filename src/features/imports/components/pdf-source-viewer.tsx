@@ -13,6 +13,22 @@ export function PdfSourceViewer({ endpoint }: { endpoint: string }) {
     [zoom, setZoom] = useState(100),
     [error, setError] = useState(''),
     [rendered, setRendered] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(600);
+  useEffect(() => {
+    const node = container.current;
+    if (!node) return;
+    let pending: ReturnType<typeof setTimeout>;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(pending);
+      pending = setTimeout(() => setContainerWidth(Math.round(node.clientWidth)), 120);
+    });
+    setContainerWidth(Math.round(node.clientWidth));
+    observer.observe(node);
+    return () => {
+      clearTimeout(pending);
+      observer.disconnect();
+    };
+  }, []);
   useEffect(() => {
     let active = true,
       task: PDFDocumentLoadingTask | undefined;
@@ -55,7 +71,7 @@ export function PdfSourceViewer({ endpoint }: { endpoint: string }) {
       const source = await document.getPage(page);
       if (!active || !canvas.current) return;
       const base = source.getViewport({ scale: 1 });
-      const width = Math.max(200, (container.current?.clientWidth ?? 600) - 32);
+      const width = Math.max(200, containerWidth - 32);
       const scale = (Math.min(2, width / base.width) * zoom) / 100;
       const viewport = source.getViewport({ scale });
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -78,7 +94,7 @@ export function PdfSourceViewer({ endpoint }: { endpoint: string }) {
       active = false;
       render?.cancel();
     };
-  }, [document, page, zoom]);
+  }, [document, page, zoom, containerWidth]);
   return (
     <div className="pdf-canvas-viewer flex flex-col gap-3 flex-1 min-h-0 tablet:min-h-100">
       <div className="source-controls flex gap-3.5 flex-wrap text-[12px] items-center">

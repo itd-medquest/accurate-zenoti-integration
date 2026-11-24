@@ -471,6 +471,7 @@ export function AppShell() {
           )}
           {view === 'receipts' && operate && (
             <ReceiptsView
+              canConfigureAccounts={admin}
               branches={branches}
               onConfigure={admin ? () => navigate('settings') : undefined}
               onInvoice={(id) =>

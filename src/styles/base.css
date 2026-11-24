@@ -17,6 +17,7 @@
     --border: var(--line);
     --input-border: #dce0f0;
     --surface-muted: #eef0fb;
+    --surface-neutral: #f3f4f6;
     --danger: #b9394d;
     --success-soft: #edf8f2;
     --success-foreground: #216a4d;
@@ -64,6 +65,7 @@
     --popover: #1c2940;
     --input-border: #36435e;
     --surface-muted: #243149;
+    --surface-neutral: #263244;
     --danger: #ff92a2;
     --success-soft: #173c34;
     --success-foreground: #8de4bf;

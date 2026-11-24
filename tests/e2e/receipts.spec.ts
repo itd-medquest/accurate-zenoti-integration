@@ -16,6 +16,30 @@ const actor = {
   active: true,
 };
 
+for (const role of ['finance', 'super_admin'] as const) {
+  test(`receipt mapping warning is yellow and settings action follows the ${role} role`, async ({
+    page,
+  }) => {
+    await mockApi(page, false, 'success', { role });
+    await page.setViewportSize({ width: 1500, height: 1000 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('button', { name: 'Review', exact: true }).click();
+    const warning = page
+      .getByRole('alert')
+      .filter({
+        hasText:
+          'Pilih Bank dan Metode Pembayaran, Jika pilihan belum tersedia, silakan hubungi Super Admin.',
+      });
+    await expect(warning).toBeVisible();
+    await expect(warning).toHaveClass(/bg-warning-soft/);
+    await expect(
+      warning.getByRole('button', { name: 'Buka pengaturan akun', exact: true }),
+    ).toHaveCount(role === 'super_admin' ? 1 : 0);
+    await expect(page.getByLabel('Bank dan metode pembayaran', { exact: true })).toBeEnabled();
+  });
+}
+
 async function mockApi(
   page: Page,
   blocked = false,
@@ -25,8 +49,10 @@ async function mockApi(
     legacyNumber?: boolean;
     sourceMethod?: 'card' | 'bank';
     missingReceipt?: boolean;
+    role?: 'finance' | 'super_admin';
   } = {},
 ) {
+  const currentActor = { ...actor, role: options.role ?? actor.role };
   let balanceUnavailable = options.balanceUnavailable ?? false;
   let current: ReceiptDraft = {
     id: draftId,
@@ -135,9 +161,9 @@ async function mockApi(
     if (path === '/auth/get-session')
       return json({
         session: { id: 'ui-session', userId: actor.id, expiresAt: '2099-01-01T00:00:00Z' },
-        user: actor,
+        user: currentActor,
       });
-    if (path === '/me') return json(actor);
+    if (path === '/me') return json(currentActor);
     if (path === '/branches')
       return json([
         {

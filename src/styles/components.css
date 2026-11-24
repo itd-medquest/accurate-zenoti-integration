@@ -844,14 +844,29 @@
     }
   }
   .modal.wide.import-review-modal {
-    @apply w-430 max-w-[calc(100vw_-_36px)] h-[94dvh] max-h-[94dvh] flex flex-col overflow-hidden;
+    @apply w-530 max-w-[calc(100vw_-_36px)] h-[94dvh] max-h-[94dvh] flex flex-col overflow-hidden;
   }
   .import-review-modal .modal-head,
   .import-review-modal > .modal-footer {
     @apply shrink-0;
   }
-  .import-review-columns > .import-detail {
-    @apply overflow-auto pt-6 min-w-0;
+  .import-review-modal .modal-footer > .import-review-notes {
+    @apply text-xs font-medium;
+  }
+  .import-review-modal .modal-footer > .import-review-notes[data-state='pending'] {
+    @apply text-destructive;
+  }
+  .import-review-modal .modal-footer > .import-review-notes[data-state='complete'] {
+    @apply text-success-foreground;
+  }
+  .import-review-columns {
+    @apply min-h-0 flex-1 overflow-hidden;
+  }
+  .import-review-columns .import-detail {
+    @apply h-full overflow-auto pt-6 min-w-0;
+  }
+  .import-review-columns .source-preview {
+    @apply h-full;
   }
   .source-preview-head h3 {
     @apply flex items-center gap-2 text-[13px] wrap-anywhere my-1.5 mx-0;
@@ -876,8 +891,19 @@
     .modal.wide.import-review-modal {
       @apply max-w-[calc(100vw_-_20px)];
     }
-    .import-review-columns > .import-detail {
-      @apply overflow-visible;
+    .import-review-columns {
+      display: block !important;
+      overflow: auto !important;
+    }
+    .import-review-columns > [data-panel],
+    .import-review-columns > [data-panel] > div {
+      display: block !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    .import-review-columns .import-detail,
+    .import-review-columns .source-preview {
+      @apply h-auto overflow-visible;
     }
     .import-review-modal > .modal-footer {
       @apply flex-wrap gap-2;
@@ -1170,6 +1196,33 @@
   .import-item-correction td {
     @apply whitespace-normal bg-accent/60;
   }
+  .import-review-modal .import-detail .import-item-mapping td:last-child {
+    @apply static max-w-none whitespace-normal bg-muted/30 shadow-none;
+  }
+  .import-review-modal .import-detail .import-item-values td:first-child {
+    @apply min-w-80 max-w-110;
+  }
+  .import-review-modal .import-detail .import-item-values:not(.import-item-editing) td {
+    @apply align-top pt-5.5 pb-4;
+  }
+  .import-review-modal .import-detail .import-item-values:not(.import-item-editing) td:first-child {
+    @apply pt-4;
+  }
+  .import-review-modal .import-detail .import-service-title {
+    @apply text-lg font-semibold leading-snug;
+  }
+  .import-review-modal .import-detail .import-item-values .import-item-status-cell {
+    @apply relative bg-transparent shadow-none;
+  }
+  .import-item-inline-status {
+    @apply absolute right-2 bottom-4 flex justify-end font-normal;
+  }
+  @media (max-width: 600px) {
+    .import-review-modal .import-detail th:last-child,
+    .import-review-modal .import-detail td:last-child {
+      @apply static shadow-none;
+    }
+  }
   .import-review-modal .import-detail .import-item-correction td:last-child {
     @apply static bg-accent/60;
   }
@@ -1223,7 +1276,13 @@
     @apply bg-destructive/20;
   }
   .import-item-delete-modal .modal-footer {
-    @apply justify-end gap-2.5;
+    @apply grid grid-cols-2 gap-3;
+  }
+  .import-item-delete-modal .modal-footer .button {
+    @apply w-full min-w-0;
+  }
+  .import-item-mapping-edit {
+    @apply text-brand;
   }
 }
 

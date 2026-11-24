@@ -46,6 +46,7 @@
   --color-info-foreground: var(--info-foreground);
   --color-info-soft: var(--info-soft);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-neutral: var(--surface-neutral);
   --color-panel: var(--panel);
   --color-ink: var(--ink);
   --color-muted: var(--surface-muted);

@@ -4,9 +4,17 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import type { Row } from '../types';
 import { isLocalOnlyInvoice } from '../utils/redemption';
+import { importReviewNotes } from '../utils/review-notes';
 
-export function ImportValidationNotice({ row }: { row: Row }) {
-  if (!row.errors.length && row.status !== 'CONFLICT') return null;
+export function ImportValidationNotice({
+  row,
+  businessStatus,
+}: {
+  row: Row;
+  businessStatus?: string;
+}) {
+  const notes = importReviewNotes(row, businessStatus);
+  if (!notes.length) return null;
 
   return (
     <Alert className="mb-5" variant="destructive" aria-label="Validasi pengiriman invoice">
@@ -23,10 +31,7 @@ export function ImportValidationNotice({ row }: { row: Row }) {
             : 'Lengkapi hal berikut, lalu simpan pemeriksaan invoice.'}
         </p>
         <ul className="list-disc pl-4">
-          {row.status === 'CONFLICT' && (
-            <li>Nomor invoice sudah tercatat dengan data berbeda. Periksa transaksi sebelumnya.</li>
-          )}
-          {[...new Set(row.errors)].map((message) => (
+          {notes.map((message) => (
             <li key={message}>{message}</li>
           ))}
         </ul>
