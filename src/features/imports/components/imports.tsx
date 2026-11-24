@@ -34,6 +34,7 @@ import { AccurateMasterPicker } from '@/features/invoices/components/accurate-ma
 import { importAccurateSelection, saveImportMapping } from '../services/accurate-mapping.service';
 import { importReviewNotes } from '../utils/review-notes';
 import { ImportHistoryView } from './import-history';
+import { ImportWorkflowSteps } from './import-workflow-steps';
 import { NewBatchDialog } from './new-batch-dialog';
 import { ProgressiveList } from '@/components/ui/progressive-list';
 import { useConditionalPolling } from '@/hooks/use-conditional-polling';
@@ -332,12 +333,18 @@ export function ImportsView({
           <h1>Faktur Penjualan.</h1>
           <p>Pantau riwayat invoice dan kelola pengiriman Faktur Penjualan ke Accurate.</p>
         </div>
-        {screen === 'history' && (
+        {screen === 'history' ? (
           <Button onClick={startNewUpload} disabled={busy}>
             <UploadCloud data-icon="inline-start" />
             Upload invoice
           </Button>
-        )}
+        ) : batch ? (
+          <NewBatchDialog
+            draft={batch.status === 'PREVIEW'}
+            disabled={busy}
+            onConfirm={startNewUpload}
+          />
+        ) : null}
       </div>
       {error && (
         <Alert
@@ -365,42 +372,7 @@ export function ImportsView({
         />
       ) : (
         <>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            {batch && (
-              <NewBatchDialog
-                draft={batch.status === 'PREVIEW'}
-                disabled={busy}
-                onConfirm={startNewUpload}
-              />
-            )}
-            <span className="text-sm text-muted-foreground">
-              Upload, periksa, lalu submit invoice Anda.
-            </span>
-          </div>
-
-          <div className="import-steps grid grid-cols-[repeat(3,_1fr)] gap-3 mb-5.5 mobile:gap-1.75">
-            {[
-              ['1', 'Upload file', UploadCloud],
-              ['2', 'Preview Accounting', Eye],
-              ['3', 'Submit & pantau', Send],
-            ].map(([step, label, Icon]) => {
-              const I = Icon as typeof UploadCloud;
-              return (
-                <div
-                  key={String(step)}
-                  className={
-                    (batch ? (batch.status === 'SUBMITTED' ? '3' : '2') : '1') === step
-                      ? 'active'
-                      : ''
-                  }
-                >
-                  <span>{String(step)}</span>
-                  <I size={17} />
-                  <strong>{String(label)}</strong>
-                </div>
-              );
-            })}
-          </div>
+          <ImportWorkflowSteps batch={batch} />
           <ImportDeliveryNotice batch={batch} branchId={branch} onConfigure={onConfigure} />
           <div className="import-batch-heading flex items-center justify-between gap-3.5 mb-4.5 flex-wrap">
             <Button variant="outline" disabled={busy} onClick={returnToHistory}>

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { loadSourcePdf } from '../services/imports.service';
 const assets = '/vendor/pdfjs-6.4.299/';
 export function PdfSourceViewer({ endpoint }: { endpoint: string }) {
@@ -99,40 +100,40 @@ export function PdfSourceViewer({ endpoint }: { endpoint: string }) {
     <div className="pdf-canvas-viewer flex flex-col gap-3 flex-1 min-h-0 tablet:min-h-100">
       <div className="source-controls flex gap-3.5 flex-wrap text-[12px] items-center">
         <Button
-          className="button inline-flex items-center justify-center whitespace-nowrap secondary"
+          className="button inline-flex items-center justify-center whitespace-nowrap secondary [&_svg:not([class*='size-'])]:size-5"
           disabled={!document || page <= 1}
           onClick={() => setPage(page - 1)}
           aria-label="Halaman PDF sebelumnya"
           variant="outline"
+          size="icon"
         >
-          ‹
+          <ChevronLeft data-icon="inline-start" />
         </Button>
         <span>
           Halaman {page} / {document?.numPages ?? '…'}
         </span>
         <Button
-          className="button inline-flex items-center justify-center whitespace-nowrap secondary"
+          className="button inline-flex items-center justify-center whitespace-nowrap secondary [&_svg:not([class*='size-'])]:size-5"
           disabled={!document || page >= document.numPages}
           onClick={() => setPage(page + 1)}
           aria-label="Halaman PDF berikutnya"
           variant="outline"
+          size="icon"
         >
-          ›
+          <ChevronRight data-icon="inline-start" />
         </Button>
-        <label>
-          Zoom{' '}
-          <SelectField
-            aria-label="Zoom PDF sumber"
-            value={zoom}
-            onValueChange={(e) => setZoom(Number(e))}
-          >
-            {[75, 100, 125, 150, 200].map((z) => (
-              <SelectFieldOption key={z} value={z}>
-                {z}%
-              </SelectFieldOption>
-            ))}
-          </SelectField>
-        </label>
+        <SelectField
+          className="w-22 shrink-0"
+          aria-label="Zoom PDF sumber"
+          value={zoom}
+          onValueChange={(e) => setZoom(Number(e))}
+        >
+          {[75, 100, 125, 150, 200].map((z) => (
+            <SelectFieldOption key={z} value={z}>
+              {z}%
+            </SelectFieldOption>
+          ))}
+        </SelectField>
       </div>
       {error ? <p role="alert">{error} Gunakan Unduh sumber.</p> : null}
       <div

@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Batch } from '../../src/features/imports/types';
+import type { Batch, ImportHistoryEntry, ImportSummary } from '../../src/features/imports/types';
 import type { addItem } from '../../src/features/imports/services/imports.service';
 import { receiptPdf } from '../fixtures/receipt-fixture';
 import { selectOption } from '../helpers/select-option';
+import { twoPagePdf } from '../fixtures/two-page-pdf';
 
 const packageDescription = 'Custom Package–Elma–202610131152726–Redeemed';
 const longMasterName =
@@ -228,7 +229,7 @@ async function fixture(
     }
     return json([]);
   });
-  return { errors, requests, saves, state, additions };
+  return { errors, requests, saves, state, additions, batch };
 }
 
 async function openReview(page: Page, mobile = false, dark = false) {
@@ -533,13 +534,18 @@ for (const mobile of [false, true])
       page.getByRole('dialog', { name: 'Keterangan Layanan Redeemed', exact: true }),
     ).toContainText(packageDescription);
     await page.keyboard.press('Escape');
-    const mappingEdit = review.getByRole('button', { name: 'Ubah mapping Layanan Uji', exact: true });
+    const mappingEdit = review.getByRole('button', {
+      name: 'Ubah mapping Layanan Uji',
+      exact: true,
+    });
     const itemEdit = review.getByRole('button', { name: 'Edit item Layanan Uji', exact: true });
     expect(await mappingEdit.evaluate((element) => getComputedStyle(element).color)).toBe(
       await itemEdit.evaluate((element) => getComputedStyle(element).color),
     );
     await pill.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `tmp/invoice-mapping-pills-${mobile ? 'mobile' : 'desktop'}.png` });
+    await page.screenshot({
+      path: `tmp/invoice-mapping-pills-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
     await review.getByRole('button', { name: 'Hapus item Layanan Uji', exact: true }).click();
     const confirmation = page.getByRole('alertdialog', { name: 'Hapus item?', exact: true });
     await expect(confirmation).toBeVisible();
@@ -548,18 +554,226 @@ for (const mobile of [false, true])
     // Measure both actions in the same frame while the dialog entrance animation runs.
     const [cancelBox, confirmBox] = await confirmation
       .locator('.modal-footer button')
-      .evaluateAll((buttons) => buttons.map((button) => {
-        const { width, y } = button.getBoundingClientRect();
-        return { width, y };
-      }));
+      .evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const { width, y } = button.getBoundingClientRect();
+          return { width, y };
+        }),
+      );
     expect(Math.abs(cancelBox.width - confirmBox.width)).toBeLessThan(1);
     expect(cancelBox.width).toBeGreaterThan(mobile ? 120 : 140);
     expect(Math.abs(cancelBox.y - confirmBox.y)).toBeLessThan(1);
     await expect(confirm).toBeEnabled();
-    await page.screenshot({ path: `tmp/invoice-delete-actions-${mobile ? 'mobile' : 'desktop'}.png` });
+    await page.screenshot({
+      path: `tmp/invoice-delete-actions-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
     await cancel.click();
     await expect(review).toBeVisible();
-    await expect(review.getByRole('button', { name: 'Edit item Layanan Uji', exact: true })).toBeVisible();
+    await expect(
+      review.getByRole('button', { name: 'Edit item Layanan Uji', exact: true }),
+    ).toBeVisible();
     expect(f.requests.some((request) => /^(PATCH|PUT|POST|DELETE) /.test(request))).toBe(false);
     expect(f.errors).toEqual([]);
   });
+
+for (const mobile of [false, true])
+  test(`invoice summary cards filter history and reset pagination (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, false);
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: mobile ? 844 : 1000 });
+    const keys = ['sent', 'draft', 'failed', 'redeem', 'processing'] as const;
+    const labels = [
+      'Berhasil dikirim',
+      'Draft',
+      'Gagal / perlu diperiksa',
+      'Full redeem',
+      'Sedang dikirim',
+    ];
+    const summary: ImportSummary = { sent: 1, draft: 25, failed: 1, redeem: 1, processing: 1 };
+    const entries: ImportHistoryEntry[] = keys.flatMap((key) =>
+      Array.from({ length: summary[key] }, (_, index) => ({
+        id: `history-${key}-${index}`,
+        branchId: f.batch.branchId,
+        version: 1,
+        status: key === 'draft' ? 'PREVIEW' : 'SUBMITTED',
+        createdAt: f.batch.createdAt,
+        invoiceCount: 1,
+        references: [`TEST-${key.toUpperCase()}-${index}`],
+        counts: {
+          sent: 0,
+          draft: 0,
+          failed: 0,
+          redeem: 0,
+          processing: 0,
+          simulation: 0,
+          local: 0,
+          [key]: 1,
+        },
+      })),
+    );
+    const queries: URLSearchParams[] = [];
+    await page.route('**/api/imports/overview?**', async (route) => {
+      const query = new URL(route.request().url()).searchParams;
+      queries.push(query);
+      const filtered = entries.filter(
+        (entry) =>
+          !query.get('status') ||
+          entry.counts[keys.find((key) => key === query.get('status'))!] > 0,
+      );
+      const start = (Number(query.get('page')) - 1) * 10;
+      await route.fulfill({
+        json: { items: filtered.slice(start, start + 10), total: filtered.length, summary },
+      });
+    });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
+    if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
+    await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Cari riwayat', exact: true }).fill('TEST');
+    await selectOption(
+      page.getByRole('combobox', { name: 'Perusahaan', exact: true }),
+      f.batch.branchId,
+    );
+    const cards = page.getByLabel('Ringkasan status invoice', { exact: true });
+    const status = page.getByRole('combobox', { name: 'Status invoice', exact: true });
+    const pagination = page.getByRole('navigation', { name: 'Halaman riwayat', exact: true });
+    await cards.getByRole('button', { name: 'Filter Draft', exact: true }).click();
+    await expect(status).toContainText('Draft');
+    await expect(
+      pagination.getByRole('button', { name: 'Halaman riwayat: berikutnya', exact: true }),
+    ).toBeEnabled();
+    await pagination
+      .getByRole('button', { name: 'Halaman riwayat: berikutnya', exact: true })
+      .click();
+    await expect.poll(() => queries.at(-1)?.get('page')).toBe('2');
+    for (const [index, key] of keys.entries()) {
+      const card = cards.getByRole('button', { name: `Filter ${labels[index]}`, exact: true });
+      if (!index) {
+        await card.focus();
+        await page.keyboard.press('Enter');
+      } else await card.click();
+      await expect(card).toHaveAttribute('aria-pressed', 'true');
+      await expect(status).toContainText(labels[index]);
+      await expect.poll(() => queries.at(-1)?.get('status')).toBe(key);
+      expect(queries.at(-1)?.get('page')).toBe('1');
+      expect(queries.at(-1)?.get('search')).toBe('TEST');
+      expect(queries.at(-1)?.get('branch')).toBe(f.batch.branchId);
+      await expect(page.locator('#invoice-upload-history tbody tr').first()).toContainText(
+        `TEST-${key.toUpperCase()}`,
+      );
+      await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(1);
+    }
+    await cards.getByRole('button', { name: 'Filter Sedang dikirim', exact: true }).click();
+    await expect(status).toContainText('Semua status');
+    await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(0);
+    await expect.poll(() => queries.at(-1)?.has('status')).toBe(false);
+    await page.screenshot({
+      path: `tmp/invoice-summary-filters-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(f.errors).toEqual([]);
+  });
+
+test('workflow checks completed stages, keeps failed delivery status, and provides clear PDF navigation', async ({
+  page,
+}) => {
+  const f = await fixture(page, false);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let sourceReads = 0;
+  await page.route('**/api/imports/review-batch/files/source-file', async (route) => {
+    sourceReads++;
+    await route.fulfill({ contentType: 'application/pdf', body: twoPagePdf() });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
+  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
+  const steps = page.getByRole('list', { name: 'Tahapan upload invoice', exact: true });
+  await expect(steps.locator('[data-state="complete"]')).toHaveCount(0);
+  await expect(steps.getByRole('listitem').nth(0)).toHaveAttribute('aria-current', 'step');
+  await page.getByRole('button', { name: 'Kembali ke riwayat', exact: true }).click();
+  await page.getByRole('button', { name: 'Buka batch review-b', exact: true }).click();
+  await expect(steps.locator('[data-state="complete"]')).toHaveCount(1);
+  await expect(steps.getByRole('listitem').nth(1)).toHaveAttribute('aria-current', 'step');
+  await expect(steps.locator('li:first-child > span > svg')).toHaveClass(/lucide-check/);
+  await expect(steps.locator('li:first-child > span')).toHaveCSS(
+    'background-color',
+    'rgb(237, 248, 242)',
+  );
+  await expect(
+    page.getByText('Upload, periksa, lalu submit invoice Anda.', { exact: true }),
+  ).toHaveCount(0);
+  const heading = page.locator('.page-heading');
+  const upload = heading.getByRole('button', { name: 'Upload batch baru', exact: true });
+  await expect(upload).toBeVisible();
+  const headingBounds = (await heading.boundingBox())!;
+  const uploadBounds = (await upload.boundingBox())!;
+  expect(uploadBounds.x).toBeGreaterThan(headingBounds.x + headingBounds.width / 2);
+  expect(uploadBounds.y).toBeLessThan(headingBounds.y + headingBounds.height);
+  f.batch.status = 'SUBMITTED';
+  f.batch.rows[0].status = 'QUEUED';
+  f.batch.rows[0].invoiceId = 'created-invoice';
+  f.batch.rows[0].syncStatus = 'PENDING';
+  await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+  await expect(steps.locator('[data-state="complete"]')).toHaveCount(2);
+  await expect(steps.getByRole('listitem').nth(2)).toHaveAttribute('aria-current', 'step');
+  for (const result of ['SYNCED', 'FAILED', 'NEEDS_REVIEW']) {
+    f.batch.rows[0].syncStatus = result;
+    await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+    await expect(steps.locator('[data-state="complete"]')).toHaveCount(3);
+    await expect(steps.locator('li > span > svg.lucide-check')).toHaveCount(3);
+    await expect(steps.locator('[aria-current]')).toHaveCount(0);
+  }
+  await page.screenshot({ path: 'tmp/invoice-workflow-complete.png' });
+  f.batch.status = 'PREVIEW';
+  f.batch.rows[0].status = 'VALID';
+  f.batch.rows[0].syncStatus = null;
+  f.batch.rows[0].invoiceId = null;
+  await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+  await page.getByRole('button', { name: 'Periksa INV-UI-001', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const previous = dialog.getByRole('button', { name: 'Halaman PDF sebelumnya', exact: true });
+  const next = dialog.getByRole('button', { name: 'Halaman PDF berikutnya', exact: true });
+  await expect(dialog.getByRole('img', { name: 'PDF sumber halaman 1' })).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
+  await expect(next.locator('svg')).toHaveCSS('width', '20px');
+  await expect(previous.locator('svg')).toHaveCSS('width', '20px');
+  await expect(dialog.getByText('Zoom', { exact: true })).toHaveCount(0);
+  const zoom = dialog.getByRole('combobox', { name: 'Zoom PDF sumber', exact: true });
+  const zoomBounds = (await zoom.boundingBox())!;
+  const nextBounds = (await next.boundingBox())!;
+  expect(zoomBounds.width).toBeLessThan(120);
+  expect(Math.abs(zoomBounds.y - nextBounds.y)).toBeLessThan(8);
+  await next.click();
+  await expect(dialog.getByRole('img', { name: 'PDF sumber halaman 2' })).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await expect(next).toBeDisabled();
+  await previous.click();
+  await expect(dialog.getByRole('img', { name: 'PDF sumber halaman 1' })).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await selectOption(dialog.getByRole('combobox', { name: 'Zoom PDF sumber', exact: true }), '125');
+  expect(sourceReads).toBe(1);
+  await page.screenshot({ path: 'tmp/invoice-pdf-controls.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await zoom.scrollIntoViewIfNeeded();
+  const mobileZoom = (await zoom.boundingBox())!;
+  const mobileNext = (await next.boundingBox())!;
+  expect(mobileZoom.width).toBeLessThan(120);
+  expect(Math.abs(mobileZoom.y - mobileNext.y)).toBeLessThan(8);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'tmp/invoice-pdf-controls-mobile.png' });
+  expect(f.errors).toEqual([]);
+});

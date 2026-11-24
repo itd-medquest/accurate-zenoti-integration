@@ -702,17 +702,20 @@
       @apply text-[11px];
     }
   }
-  .import-steps > div {
+  .import-steps > li {
     @apply flex items-center gap-2.5 border border-solid border-surface-border rounded-xl p-3.75 bg-control/50 text-muted-foreground text-[12px];
   }
-  .import-steps > div > span {
-    @apply flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 font-bold;
+  .import-steps > li > span {
+    @apply flex shrink-0 items-center justify-center size-6 rounded-full bg-muted/50 font-bold;
   }
-  .import-steps > div.active {
+  .import-steps > li[data-state='current'] {
     @apply bg-control/85 border-surface-border text-foreground shadow-panel;
   }
-  .import-steps > div.active > span {
+  .import-steps > li[data-state='current'] > span {
     @apply bg-brand text-white;
+  }
+  .import-steps > li[data-state='complete'] > span {
+    @apply bg-success-soft text-success-foreground;
   }
   .import-steps strong {
     @apply font-semibold;
@@ -803,13 +806,13 @@
     @apply text-[10px] text-muted-foreground mt-2;
   }
   @media (max-width: 760px) {
-    .import-steps > div {
+    .import-steps > li {
       @apply flex-col items-start p-3 gap-2 text-[10px] leading-[1.5];
     }
-    .import-steps > div > svg {
+    .import-steps > li > svg {
       @apply hidden;
     }
-    .import-steps > div > span {
+    .import-steps > li > span {
       @apply w-5.5 h-5.5;
     }
     .import-summary-grid > div {

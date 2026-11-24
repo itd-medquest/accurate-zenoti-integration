@@ -1,7 +1,13 @@
 export type ReceiptBank = 'BCA' | 'BNI';
 export type ReceiptMethod = 'CREDIT_CARD' | 'DEBIT_CARD' | 'QRIS' | 'BANK_TRANSFER';
 export type ReceiptStatus =
-  'TO_REVIEW' | 'DRAFT' | 'QUEUED' | 'SENDING' | 'SUCCEEDED' | 'NEEDS_REVIEW';
+  | 'TO_REVIEW'
+  | 'DRAFT'
+  | 'QUEUED'
+  | 'SENDING'
+  | 'SUCCEEDED'
+  | 'NEEDS_REVIEW';
+export type ReceiptStatusFilter = ReceiptStatus | 'PROCESSING';
 export type ReceiptAccount = { id: string; code: string; name: string; type: string };
 export type ReceiptMapping = {
   id: string;
@@ -106,7 +112,7 @@ export type ReceiptDetail = {
 export type ReceiptFilters = {
   search: string;
   branch: string;
-  status: ReceiptStatus | '';
+  status: ReceiptStatusFilter | '';
   from: string;
   to: string;
   page: number;
@@ -134,4 +140,8 @@ export const statusLabels: Record<ReceiptStatus, string> = {
   SENDING: 'Sedang dikirim',
   SUCCEEDED: 'Berhasil',
   NEEDS_REVIEW: 'Perlu diperiksa',
+};
+export const receiptFilterLabels: Record<ReceiptStatusFilter, string> = {
+  ...statusLabels,
+  PROCESSING: 'Sedang diproses',
 };

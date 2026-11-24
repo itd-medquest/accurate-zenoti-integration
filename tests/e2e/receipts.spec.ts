@@ -2,7 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { selectOption } from '../helpers/select-option';
-import type { ReceiptConfiguration, ReceiptDraft } from '../../src/features/receipts/types';
+import type {
+  ReceiptConfiguration,
+  ReceiptDraft,
+  ReceiptRow,
+  ReceiptStatus,
+} from '../../src/features/receipts/types';
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001';
 const branch = '00000000-0000-4000-8000-000000000001';
@@ -25,12 +30,10 @@ for (const role of ['finance', 'super_admin'] as const) {
     await page.goto('/');
     await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
     await page.getByRole('button', { name: 'Review', exact: true }).click();
-    const warning = page
-      .getByRole('alert')
-      .filter({
-        hasText:
-          'Pilih Bank dan Metode Pembayaran, Jika pilihan belum tersedia, silakan hubungi Super Admin.',
-      });
+    const warning = page.getByRole('alert').filter({
+      hasText:
+        'Pilih Bank dan Metode Pembayaran, Jika pilihan belum tersedia, silakan hubungi Super Admin.',
+    });
     await expect(warning).toBeVisible();
     await expect(warning).toHaveClass(/bg-warning-soft/);
     await expect(
@@ -857,3 +860,121 @@ test('receipt mapping keeps an unsaved selection after failure and shows persist
     fullPage: true,
   });
 });
+
+for (const mobile of [false, true])
+  test(`receipt summary cards filter all five categories and combine processing statuses (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: mobile ? 844 : 1000 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const statuses: ReceiptStatus[] = [
+      'TO_REVIEW',
+      'DRAFT',
+      'QUEUED',
+      'SENDING',
+      'SUCCEEDED',
+      'NEEDS_REVIEW',
+    ];
+    const rows: ReceiptRow[] = statuses.flatMap((status) =>
+      Array.from({ length: status === 'DRAFT' ? 26 : 1 }, (_, index) => ({
+        invoiceId: `invoice-${status}-${index}`,
+        invoiceNumber: `INV-${status}-${index}`,
+        customer: 'Customer Uji',
+        branchId: branch,
+        branchName: 'Perusahaan Uji',
+        sourceKey: `source-${status}-${index}`,
+        sourceMethod: 'qris',
+        paidAt: '2026-11-01T00:00:00+07:00',
+        gross: 200001,
+        grouped: false,
+        paymentCount: 1,
+        status,
+        draft: null,
+        error: null,
+      })),
+    );
+    const summary = { review: 1, draft: 26, processing: 2, succeeded: 1, attention: 1 };
+    const queries: URLSearchParams[] = [];
+    await page.route('**/api/receipts?**', async (route) => {
+      const query = new URL(route.request().url()).searchParams;
+      queries.push(query);
+      const status = query.get('status');
+      const filtered = rows.filter((row) =>
+        status === 'PROCESSING'
+          ? ['QUEUED', 'SENDING'].includes(row.status)
+          : !status || row.status === status,
+      );
+      const pageSize = Number(query.get('pageSize'));
+      const start = (Number(query.get('page')) - 1) * pageSize;
+      await route.fulfill({
+        json: {
+          items: filtered.slice(start, start + pageSize),
+          total: filtered.length,
+          summary,
+          page: Number(query.get('page')),
+          pageSize,
+        },
+      });
+    });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
+    if (!mobile)
+      await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
+    if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
+    await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Cari penerimaan', exact: true }).fill('Customer');
+    await selectOption(page.getByRole('combobox', { name: 'Perusahaan', exact: true }), branch);
+    const cards = page.getByLabel('Ringkasan status penerimaan', { exact: true });
+    const status = page.getByRole('combobox', { name: 'Status penerimaan', exact: true });
+    const pagination = page.getByRole('navigation', { name: 'Riwayat penerimaan', exact: true });
+    await cards.getByRole('button', { name: 'Filter Draft', exact: true }).click();
+    await expect(status).toContainText('Draft');
+    await expect(
+      pagination.getByRole('button', { name: 'Riwayat penerimaan: berikutnya', exact: true }),
+    ).toBeEnabled();
+    await pagination
+      .getByRole('button', { name: 'Riwayat penerimaan: berikutnya', exact: true })
+      .click();
+    await expect.poll(() => queries.at(-1)?.get('page')).toBe('2');
+    for (const [label, key] of [
+      ['Belum direview', 'TO_REVIEW'],
+      ['Draft', 'DRAFT'],
+      ['Sedang diproses', 'PROCESSING'],
+      ['Berhasil', 'SUCCEEDED'],
+      ['Perlu diperiksa', 'NEEDS_REVIEW'],
+    ]) {
+      const card = cards.getByRole('button', { name: `Filter ${label}`, exact: true });
+      if (key === 'TO_REVIEW') {
+        await card.focus();
+        await page.keyboard.press('Space');
+      } else await card.click();
+      await expect(card).toHaveAttribute('aria-pressed', 'true');
+      await expect(status).toContainText(label);
+      await expect.poll(() => queries.at(-1)?.get('status')).toBe(key);
+      expect(queries.at(-1)?.get('page')).toBe('1');
+      expect(queries.at(-1)?.get('search')).toBe('Customer');
+      expect(queries.at(-1)?.get('branch')).toBe(branch);
+      await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(1);
+      if (key === 'PROCESSING') {
+        await expect(page.getByRole('table').getByRole('row')).toHaveCount(3);
+        await expect(page.getByRole('table')).toContainText('Dalam antrean');
+        await expect(page.getByRole('table')).toContainText('Sedang dikirim');
+      } else
+        await expect(page.getByRole('table').getByRole('row').nth(1)).toContainText(`INV-${key}`);
+    }
+    await cards.getByRole('button', { name: 'Filter Perlu diperiksa', exact: true }).click();
+    await expect(status).toContainText('Semua status');
+    await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(0);
+    await expect.poll(() => queries.at(-1)?.has('status')).toBe(false);
+    await selectOption(status, 'QUEUED');
+    await expect(page.getByRole('table').getByRole('row')).toHaveCount(2);
+    await expect(page.getByRole('table')).toContainText('INV-QUEUED');
+    await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(0);
+    await page.screenshot({
+      path: `tmp/receipt-summary-filters-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  });

@@ -29,6 +29,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { ImportPagination } from '@/components/ui/pagination';
 import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SummaryFilterCard } from '@/components/ui/summary-filter-card';
 import {
   Table,
   TableBody,
@@ -45,9 +46,10 @@ import {
   sourceMethodLabels,
   methodLabels,
   statusLabels,
+  receiptFilterLabels,
   type ReceiptFilters,
   type ReceiptRow,
-  type ReceiptStatus,
+  type ReceiptStatusFilter,
 } from '../types';
 import { ReceiptReview } from './receipt-review';
 
@@ -117,6 +119,7 @@ export function ReceiptsView({
   const summaries = [
     {
       label: 'Belum direview',
+      status: 'TO_REVIEW',
       value: data?.summary.review,
       icon: FilePenLine,
       hint: 'Pembayaran siap diperiksa',
@@ -124,6 +127,7 @@ export function ReceiptsView({
     },
     {
       label: 'Draft',
+      status: 'DRAFT',
       value: data?.summary.draft,
       icon: FilePenLine,
       hint: 'Review tersimpan di intgrte',
@@ -131,6 +135,7 @@ export function ReceiptsView({
     },
     {
       label: 'Sedang diproses',
+      status: 'PROCESSING',
       value: data?.summary.processing,
       icon: Clock3,
       hint: 'Antrean dan proses Accurate',
@@ -138,6 +143,7 @@ export function ReceiptsView({
     },
     {
       label: 'Berhasil',
+      status: 'SUCCEEDED',
       value: data?.summary.succeeded,
       icon: CheckCheck,
       hint: 'Terverifikasi di Accurate',
@@ -145,6 +151,7 @@ export function ReceiptsView({
     },
     {
       label: 'Perlu diperiksa',
+      status: 'NEEDS_REVIEW',
       value: data?.summary.attention,
       icon: CircleAlert,
       hint: 'Penerimaan perlu ditinjau',
@@ -164,26 +171,24 @@ export function ReceiptsView({
         className="grid grid-cols-2 gap-3 lg:grid-cols-5"
         aria-label="Ringkasan status penerimaan"
       >
-        {summaries.map(({ label, value, icon: Icon, hint, tone }) => (
-          <Card key={label} size="sm" tone={tone} className="last:col-span-2 lg:last:col-span-1">
-            <CardHeader className="min-h-16 items-start gap-2 pb-3">
-              <CardTitle>{label}</CardTitle>
-              <Icon aria-hidden="true" className="size-4 shrink-0" />
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 pb-4">
-              {!data && !error ? (
-                <Skeleton className="h-9 w-14" />
-              ) : (
-                <strong className="font-display text-3xl font-medium tabular-nums">
-                  {value?.toLocaleString('id-ID') ?? '—'}
-                </strong>
-              )}
-              <CardDescription>{hint}</CardDescription>
-            </CardContent>
-          </Card>
+        {summaries.map(({ label, value, icon, hint, tone, status }) => (
+          <SummaryFilterCard
+            key={status}
+            label={label}
+            value={value}
+            icon={icon}
+            hint={hint}
+            tone={tone}
+            className="last:col-span-2 lg:last:col-span-1"
+            active={filters.status === status}
+            loading={!data && !error}
+            disabled={!!opening}
+            controls="sales-receipt-history"
+            onSelect={() => update({ status: filters.status === status ? '' : status })}
+          />
         ))}
       </div>
-      <Card>
+      <Card id="sales-receipt-history">
         <CardHeader className="flex-wrap items-start">
           <div className="min-w-0">
             <CardTitle>Riwayat dan review penerimaan</CardTitle>
@@ -252,12 +257,12 @@ export function ReceiptsView({
                 id="receipt-status-filter"
                 value={filters.status}
                 onValueChange={(value) => {
-                  if (value === '' || value in statusLabels)
-                    update({ status: value as ReceiptStatus | '' });
+                  if (value === '' || value in receiptFilterLabels)
+                    update({ status: value as ReceiptStatusFilter | '' });
                 }}
               >
                 <SelectFieldOption value="">Semua status</SelectFieldOption>
-                {Object.entries(statusLabels).map(([key, label]) => (
+                {Object.entries(receiptFilterLabels).map(([key, label]) => (
                   <SelectFieldOption key={key} value={key}>
                     {label}
                   </SelectFieldOption>

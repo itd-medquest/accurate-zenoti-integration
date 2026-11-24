@@ -30,6 +30,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import { ImportPagination } from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SummaryFilterCard } from '@/components/ui/summary-filter-card';
 import {
   Table,
   TableBody,
@@ -114,32 +115,23 @@ export function ImportHistoryView({
     <section aria-label="Riwayat Faktur Penjualan" className="flex min-w-0 flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Ringkasan status invoice">
         {statuses.map(({ key, label, hint, icon: Icon }) => (
-          <Card
+          <SummaryFilterCard
             key={key}
+            label={label}
+            value={data?.summary[key]}
+            hint={hint}
+            icon={Icon}
             className="last:col-span-2 lg:last:col-span-1"
-            size="sm"
             tone={key === 'sent' ? 'brand' : key === 'failed' ? 'highlight' : 'default'}
-          >
-            <CardHeader className="min-h-16 items-start gap-2 pb-3">
-              <CardTitle>{label}</CardTitle>
-              <Icon className="size-4" aria-hidden="true" />
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 pb-4">
-              {!data && error ? (
-                <span className="text-3xl">—</span>
-              ) : !data ? (
-                <Skeleton className="h-9 w-14" />
-              ) : (
-                <strong className="font-display text-3xl font-medium tabular-nums">
-                  {data.summary[key].toLocaleString('id-ID')}
-                </strong>
-              )}
-              <CardDescription>{hint}</CardDescription>
-            </CardContent>
-          </Card>
+            active={filters.status === key}
+            loading={!data && !error}
+            disabled={opening}
+            controls="invoice-upload-history"
+            onSelect={() => update({ status: filters.status === key ? '' : key })}
+          />
         ))}
       </div>
-      <Card className="import-history">
+      <Card className="import-history" id="invoice-upload-history">
         <CardHeader className="flex-wrap items-start">
           <div>
             <CardTitle>Riwayat upload</CardTitle>
