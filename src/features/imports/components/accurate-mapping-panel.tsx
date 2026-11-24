@@ -1,13 +1,11 @@
 'use client';
 import { AccurateMasterPicker } from '@/features/invoices/components/accurate-master-picker';
-import { saveAccurateMapping } from '@/features/invoices/services/accurate.service';
 import type { Batch, Row } from '../types';
-import { getBatch } from '../services/imports.service';
-import { money, unitMoney } from '@/lib/format';
+import { money } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { chargeableItems } from '../utils/redemption';
 import { CreateAccurateCustomer } from '@/features/invoices/components/create-accurate-customer';
+import { importAccurateSelection, saveImportMapping } from '../services/accurate-mapping.service';
 export function AccurateMappingPanel({
   batch,
   row,
@@ -24,26 +22,16 @@ export function AccurateMappingPanel({
   onConfigure?: () => void;
 }) {
   const destination = batch.accurateDestination;
-  const selection = row.candidate.accurateSelection;
+  const selection = importAccurateSelection(batch, row);
   const valid =
     destination &&
     selection?.databaseId === destination.databaseId &&
     selection.targetBranchId === destination.targetBranchId;
-  const items = chargeableItems(row.candidate.items);
-  const mappingComplete =
-    !!valid &&
-    !!selection?.customer?.code &&
-    items.every((item) => !!selection.items[item.id]?.code && !!selection.items[item.id]?.unitName);
+  const mappingComplete = !!valid && !!selection?.customer?.code;
   const save = async (kind: 'customer' | 'item', masterId: string, itemId?: string) => {
     onBusyChange(true);
     try {
-      await saveAccurateMapping(batch.id, row.id, {
-        version: batch.version,
-        kind,
-        masterId,
-        itemId,
-      });
-      onSaved(await getBatch(batch.id));
+      onSaved(await saveImportMapping(batch, row, kind, masterId, itemId));
     } finally {
       onBusyChange(false);
     }
@@ -73,7 +61,7 @@ export function AccurateMappingPanel({
       {batch.status === 'PREVIEW' && destination && (
         <details className="group" open={!mappingComplete}>
           <summary className="cursor-pointer text-sm font-medium text-primary">
-            <span>Customer dan kode item Accurate</span>
+            <span>Customer Accurate</span>
             {mappingComplete && (
               <Badge variant="success" className="ml-2">
                 Mapping tersimpan
@@ -103,18 +91,9 @@ export function AccurateMappingPanel({
                 />
               )}
             />
-            {chargeableItems(row.candidate.items).map((item) => (
-              <AccurateMasterPicker
-                branchId={batch.branchId}
-                key={item.id}
-                kind="item"
-                label={item.name}
-                initialSearch={item.name.slice(0, 100)}
-                selected={valid ? selection?.items[item.id] : undefined}
-                disabled={busy}
-                onSelect={(id) => save('item', id, item.id)}
-              />
-            ))}
+            <p className="text-xs text-muted-foreground">
+              Petakan kode item Accurate langsung pada masing-masing baris layanan/item di bawah.
+            </p>
           </div>
         </details>
       )}
@@ -128,20 +107,7 @@ export function AccurateMappingPanel({
               Customer: {selection.customer.code} · Nomor faktur:{' '}
               {row.candidate.sourceInvoiceNumber || row.candidate.number}
             </p>
-            {chargeableItems(row.candidate.items).map((item) => (
-              <p key={item.id} className="break-words">
-                {selection.items[item.id]?.code || 'Belum dipetakan'} · {item.quantity} ×{' '}
-                {unitMoney(
-                  Number(
-                    (
-                      (item.quantity * item.unitPrice - item.discount + item.tax) /
-                      item.quantity
-                    ).toFixed(6),
-                  ),
-                )}{' '}
-                (harga akhir/unit)
-              </p>
-            ))}
+            <p>Kode item dan satuan dapat diperiksa pada rincian layanan/item.</p>
             <p className="font-semibold">Total faktur: {money(row.candidate.total)} · Non-pajak</p>
           </div>
         </details>

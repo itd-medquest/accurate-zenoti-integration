@@ -21,7 +21,7 @@ import {
 import { cn } from '@/lib/cn';
 import { money, unitMoney } from '@/lib/format';
 import { PencilLine, Save, Trash2, X } from 'lucide-react';
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import type { Batch } from '../types';
 export function EditableImportItem({
   item,
@@ -37,6 +37,9 @@ export function EditableImportItem({
   onCancel,
   onSaved,
   onSaving,
+  mappingSummary,
+  mappingStatus,
+  mappingEditor,
 }: {
   item: EditableItem;
   batchId: string;
@@ -51,6 +54,9 @@ export function EditableImportItem({
   onCancel: () => void;
   onSaved: (batch: Batch) => void;
   onSaving: (saving: boolean) => void;
+  mappingSummary?: ReactNode;
+  mappingStatus?: ReactNode;
+  mappingEditor?: ReactNode;
 }) {
   const initial = () => ({
     name: item.name,
@@ -129,7 +135,7 @@ export function EditableImportItem({
   }
   return (
     <Fragment>
-      <TableRow className={cn(editing ? 'import-item-editing bg-accent/60' : undefined)}>
+      <TableRow className={cn('import-item-values', editing && 'import-item-editing bg-accent/60')}>
         <TableCell>
           {editing ? (
             <Input
@@ -143,7 +149,7 @@ export function EditableImportItem({
           ) : (
             <>
               <div className="import-item-name flex items-center justify-between gap-1.5">
-                <span className="min-w-0 flex-1">{item.name}</span>
+                <strong className="import-service-title min-w-0 flex-1">{item.name}</strong>
                 {editable && (
                   <span className="import-item-row-actions inline-flex flex-[0_0_auto] gap-0.5">
                     <Button
@@ -178,26 +184,11 @@ export function EditableImportItem({
                   </span>
                 )}
               </div>
-              {item.redeemed && (
-                <Badge
-                  variant="secondary"
-                  className="mt-1 h-auto min-h-6 max-w-full rounded-md whitespace-normal text-left leading-snug"
-                >
-                  Redeemed · Tidak dikirim ke Accurate
-                </Badge>
-              )}
-              {item.redemptionNote && (
+              {mappingSummary}
+              {!mappingSummary && item.redemptionNote && (
                 <p className="mt-1 break-words text-xs text-muted-foreground">
                   {item.redemptionNote}
                 </p>
-              )}
-              {!item.redeemed && isFreeConsultation(item) && (
-                <Badge
-                  variant="secondary"
-                  className="mt-1 h-auto min-h-6 max-w-full rounded-md whitespace-normal text-left leading-snug"
-                >
-                  Consultation gratis · Tidak dikirim ke Accurate
-                </Badge>
               )}
             </>
           )}
@@ -260,12 +251,33 @@ export function EditableImportItem({
             money(item.tax)
           )}
         </TableCell>
-        <TableCell className="amount font-semibold whitespace-nowrap tabular-nums">
+        <TableCell
+          className={cn(
+            'amount font-semibold whitespace-nowrap tabular-nums',
+            !editing &&
+              (mappingStatus || item.redeemed || isFreeConsultation(item)) &&
+              'import-item-status-cell',
+          )}
+        >
           {editing
             ? final(item.redeemed ? 0 : result ? net + result.tax : NaN)
             : money(item.redeemed ? 0 : item.unitPrice * item.quantity - item.discount + item.tax)}
+          {!editing && (mappingStatus || item.redeemed || isFreeConsultation(item)) && (
+            <div className="import-item-inline-status">
+              {mappingStatus || (
+                <Badge variant="secondary">
+                  {item.redeemed ? 'Redeemed' : 'Consultation gratis'} · Tidak dikirim ke Accurate
+                </Badge>
+              )}
+            </div>
+          )}
         </TableCell>
       </TableRow>
+      {!editing && mappingEditor && (
+        <TableRow className="import-item-mapping">
+          <TableCell colSpan={7}>{mappingEditor}</TableCell>
+        </TableRow>
+      )}
       {editing && (
         <TableRow className="import-item-correction">
           <TableCell colSpan={7}>

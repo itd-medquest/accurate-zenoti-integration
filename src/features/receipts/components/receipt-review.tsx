@@ -15,6 +15,7 @@ import {
   Save,
   Send,
   Settings2,
+  TriangleAlert,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -64,12 +65,14 @@ function Form({
   refresh,
   onBack,
   onConfigure,
+  canConfigureAccounts = false,
   onInvoice,
 }: {
   data: ReceiptDetail;
   refresh: () => Promise<void>;
   onBack: () => void;
   onConfigure?: () => void;
+  canConfigureAccounts?: boolean;
   onInvoice?: (id: string) => void;
 }) {
   const { draft, source, invoice, configuration } = data;
@@ -378,14 +381,15 @@ function Form({
                       </Badge>
                     </div>
                   ) : (
-                    <Alert variant="info">
+                    <Alert variant="warning">
+                      <TriangleAlert aria-hidden="true" />
                       <AlertDescription>
                         <div className="flex flex-col gap-3">
                           <p>
-                            Mapping belum dipilih. Jika pilihan belum tersedia, Super Admin perlu
-                            mengatur akun penerimaan di Settings.
+                            Pilih Bank dan Metode Pembayaran, Jika pilihan belum tersedia, silakan
+                            hubungi Super Admin.
                           </p>
-                          {onConfigure && (
+                          {canConfigureAccounts && onConfigure && (
                             <Button
                               type="button"
                               variant="outline"
@@ -740,11 +744,13 @@ export function ReceiptReview({
   id,
   onBack,
   onConfigure,
+  canConfigureAccounts = false,
   onInvoice,
 }: {
   id: string;
   onBack: () => void;
   onConfigure?: () => void;
+  canConfigureAccounts?: boolean;
   onInvoice?: (id: string) => void;
 }) {
   const fetcher = useCallback((signal: AbortSignal) => getReceipt(id, signal), [id]);
@@ -782,6 +788,7 @@ export function ReceiptReview({
           refresh={read}
           onBack={onBack}
           onConfigure={onConfigure}
+          canConfigureAccounts={canConfigureAccounts}
           onInvoice={onInvoice}
         />
       ) : (

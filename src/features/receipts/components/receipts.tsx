@@ -63,10 +63,12 @@ const statusVariants = {
 export function ReceiptsView({
   branches,
   onConfigure,
+  canConfigureAccounts = false,
   onInvoice,
 }: {
   branches: Branch[];
   onConfigure?: () => void;
+  canConfigureAccounts?: boolean;
   onInvoice?: (id: string) => void;
 }) {
   const [filters, setFilters] = useState<ReceiptFilters>({
@@ -108,6 +110,7 @@ export function ReceiptsView({
           setSelected(null);
         }}
         onConfigure={onConfigure}
+        canConfigureAccounts={canConfigureAccounts}
         onInvoice={onInvoice}
       />
     );

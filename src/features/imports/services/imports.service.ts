@@ -88,6 +88,7 @@ export function addItem(
   batchId: string,
   rowId: string,
   input: {
+    accurateMasterId?: string;
     kind: string;
     reason: string;
     name: string;

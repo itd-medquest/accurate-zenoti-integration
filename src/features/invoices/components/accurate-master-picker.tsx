@@ -18,6 +18,7 @@ export function AccurateMasterPicker({
   onSelect,
   emptyAction,
   branchId,
+  draftSelection = false,
 }: {
   kind: 'customer' | 'item' | 'branch';
   branchId?: string;
@@ -25,7 +26,8 @@ export function AccurateMasterPicker({
   initialSearch?: string;
   selected?: { code: string; name: string; unitName?: string };
   disabled?: boolean;
-  onSelect: (id: string) => Promise<void>;
+  onSelect: (id: string, master: AccurateMaster) => Promise<void>;
+  draftSelection?: boolean;
   emptyAction?: (onSaved: () => void) => ReactNode;
 }) {
   const id = useId();
@@ -62,9 +64,9 @@ export function AccurateMasterPicker({
           <FieldTitle id={`${id}-label`}>{label}</FieldTitle>
         )}
         {selected && (
-          <Badge variant="success">
+          <Badge variant={draftSelection ? 'info' : 'success'}>
             <CheckCircle2 aria-hidden="true" />
-            Tersimpan
+            {draftSelection ? 'Pilihan baru' : 'Tersimpan'}
           </Badge>
         )}
       </div>
@@ -193,7 +195,10 @@ export function AccurateMasterPicker({
                       setBusy(true);
                       setError('');
                       try {
-                        await onSelect(choice);
+                        const master = results.find((item) => item.id === choice);
+                        if (!master)
+                          throw new Error('Pilih hasil pencarian Accurate terlebih dahulu.');
+                        await onSelect(choice, master);
                         setResults(null);
                         setChoice('');
                         setEditing(false);
@@ -206,16 +211,18 @@ export function AccurateMasterPicker({
                       }
                     }}
                   >
-                    Simpan pilihan
+                    {draftSelection ? 'Gunakan pilihan' : 'Simpan pilihan'}
                   </Button>
                 </div>
               )}
             </>
           )}
           <FieldDescription id={`${id}-help`}>
-            {selected
-              ? 'Pilihan tersimpan tetap digunakan sampai Anda berhasil menyimpan penggantinya.'
-              : 'Cari data Accurate, pilih hasil yang sesuai, lalu simpan pilihan.'}
+            {draftSelection
+              ? 'Pilihan Accurate akan disimpan bersama item baru.'
+              : selected
+                ? 'Pilihan tersimpan tetap digunakan sampai Anda berhasil menyimpan penggantinya.'
+                : 'Cari data Accurate, pilih hasil yang sesuai, lalu simpan pilihan.'}
           </FieldDescription>
           {selected && (
             <div>
