@@ -1191,7 +1191,13 @@
     @apply text-brand shrink-0;
   }
   .import-item-editing input {
-    @apply w-full min-w-18.75 py-2 px-1.5 text-[11px];
+    @apply w-full min-w-18.75 py-2 px-1.5 text-[13px];
+  }
+  .import-item-editing > td {
+    @apply align-top;
+  }
+  .import-item-editing [data-discount-control] input {
+    @apply min-w-0;
   }
   .import-item-editing td:first-child input {
     @apply min-w-37.5;

@@ -27,7 +27,7 @@ export function InvoiceReviewLayout({
     >
       <ResizablePanel
         id="invoice-review-fields"
-        defaultSize="52%"
+        defaultSize="66%"
         minSize="30%"
         className="min-h-0 min-w-0"
       >
@@ -44,7 +44,7 @@ export function InvoiceReviewLayout({
           />
           <ResizablePanel
             id="invoice-review-source"
-            defaultSize="48%"
+            defaultSize="34%"
             minSize="25%"
             className="flex min-h-0 min-w-0 flex-col"
           >

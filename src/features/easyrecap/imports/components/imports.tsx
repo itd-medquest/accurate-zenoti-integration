@@ -1312,6 +1312,18 @@ export function ImportsView({
           wide={!itemToDelete}
           className={itemToDelete ? 'import-item-delete-modal' : 'import-review-modal'}
           onClose={itemToDelete ? cancelItemDelete : closeDetail}
+          onEscapeKeyDown={(event) => {
+            const toggle =
+              event.target instanceof Element
+                ? event.target
+                    .closest('[data-discount-control]')
+                    ?.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')
+                : null;
+            if (!toggle) return;
+            event.preventDefault();
+            toggle.click();
+            toggle.focus();
+          }}
           onPointerDownOutside={(event) => {
             // The resize library handles pointer events before Radix's React capture handler.
             // Keep a press on the divider inside this dialog without disabling outside dismissal.

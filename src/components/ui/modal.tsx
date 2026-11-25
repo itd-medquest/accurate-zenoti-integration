@@ -29,6 +29,7 @@ export function Modal({
   className,
   destructive = false,
   onPointerDownOutside,
+  onEscapeKeyDown,
 }: {
   title: string;
   children: React.ReactNode;
@@ -37,6 +38,7 @@ export function Modal({
   className?: string;
   destructive?: boolean;
   onPointerDownOutside?: React.ComponentProps<typeof DialogContent>['onPointerDownOutside'];
+  onEscapeKeyDown?: React.ComponentProps<typeof DialogContent>['onEscapeKeyDown'];
 }) {
   const previousFocus = useRef<HTMLElement | null>(null);
   const Root = destructive ? AlertDialog : Dialog;
@@ -53,6 +55,7 @@ export function Modal({
     >
       <Content
         onPointerDownOutside={onPointerDownOutside}
+        onEscapeKeyDown={onEscapeKeyDown}
         {...(!destructive ? { showCloseButton: false } : {})}
         className={cn(
           'modal block w-[min(480px,calc(100vw-2rem))] max-h-[90dvh] gap-0 overflow-auto p-0 sm:max-w-none mobile:max-h-[94dvh]',

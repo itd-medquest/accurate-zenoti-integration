@@ -319,7 +319,7 @@ for (const mobile of [false, true])
     await form
       .getByRole('textbox', { name: 'Nama item baru', exact: true })
       .fill('Layanan tambahan');
-    await form.getByRole('spinbutton', { name: 'Harga unit item baru', exact: true }).fill('10000');
+    await form.getByRole('textbox', { name: 'Harga unit item baru', exact: true }).fill('10000');
     await form
       .getByRole('textbox', { name: 'Alasan penambahan item', exact: true })
       .fill('Layanan terlewat saat pembacaan dokumen');
@@ -445,6 +445,8 @@ test('review divider supports dragging and keyboard, fits PDF and preserves edit
   const pdf = dialog.getByRole('img', { name: 'PDF sumber halaman 1' });
   await expect(pdf).toHaveAttribute('data-rendered', 'true');
   const initial = (await fields.boundingBox())!.width;
+  const initialSource = (await source.boundingBox())!.width;
+  expect(initial / (initial + initialSource)).toBeCloseTo(0.66, 2);
   const initialPdf = (await pdf.boundingBox())!.width;
   const initialRequests = f.requests.length;
   const handle = (await separator.boundingBox())!;
@@ -795,15 +797,10 @@ for (const mobile of [false, true])
     await form
       .getByRole('textbox', { name: 'Nama item baru', exact: true })
       .fill('Nominal source treatment');
+    await form.getByRole('textbox', { name: 'Harga unit item baru', exact: true }).fill('1801802');
+    await switchDiscount(page, 'item baru', 'Nominal (Rp)');
     await form
-      .getByRole('spinbutton', { name: 'Harga unit item baru', exact: true })
-      .fill('1801802');
-    await selectOption(
-      page.getByRole('combobox', { name: 'Jenis diskon item baru', exact: true }),
-      { label: 'Nominal (Rp)' },
-    );
-    await form
-      .getByRole('spinbutton', { name: 'Diskon nominal item baru', exact: true })
+      .getByRole('textbox', { name: 'Diskon nominal item baru', exact: true })
       .fill('1622523');
     await form.getByRole('spinbutton', { name: 'Pajak persen item baru', exact: true }).fill('11');
     await form
@@ -811,21 +808,15 @@ for (const mobile of [false, true])
       .fill('Treatment and nominal discount verified against the source');
     await expect(form).toContainText(/Rp\s*179\.279/);
     await expect(form).toContainText(/Rp\s*199\.000/);
-    await selectOption(
-      page.getByRole('combobox', { name: 'Jenis diskon item baru', exact: true }),
-      { label: 'Persentase (%)' },
-    );
+    await switchDiscount(page, 'item baru', 'Persentase (%)');
     await expect(
       form.getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true }),
     ).toHaveValue('90.050017');
     await expect(form).toContainText(/Rp\s*199\.000/);
-    await selectOption(
-      page.getByRole('combobox', { name: 'Jenis diskon item baru', exact: true }),
-      { label: 'Nominal (Rp)' },
-    );
+    await switchDiscount(page, 'item baru', 'Nominal (Rp)');
     await expect(
-      form.getByRole('spinbutton', { name: 'Diskon nominal item baru', exact: true }),
-    ).toHaveValue('1622523');
+      form.getByRole('textbox', { name: 'Diskon nominal item baru', exact: true }),
+    ).toHaveValue('1.622.523');
     await form.scrollIntoViewIfNeeded();
     await page.screenshot({
       path: 'tmp/nominal-discount-' + (mobile ? 'mobile' : 'desktop') + '.png',
@@ -853,16 +844,22 @@ test('an exact nominal discount can be edited without submitting its derived per
   });
   await openReview(page);
   await page.getByRole('button', { name: 'Edit item Layanan Uji', exact: true }).click();
-  await expect(
-    page.getByRole('spinbutton', { name: 'Diskon nominal item', exact: true }),
-  ).toHaveValue('1622523');
-  await selectOption(page.getByRole('combobox', { name: 'Jenis diskon item', exact: true }), {
-    label: 'Persentase (%)',
-  });
-  await selectOption(page.getByRole('combobox', { name: 'Jenis diskon item', exact: true }), {
-    label: 'Nominal (Rp)',
-  });
-  await page.getByRole('spinbutton', { name: 'Diskon nominal item', exact: true }).fill('1622522');
+  const inputTops = await Promise.all(
+    [
+      page.getByRole('textbox', { name: 'Nama item', exact: true }),
+      page.getByRole('spinbutton', { name: 'Qty item', exact: true }),
+      page.getByRole('textbox', { name: 'Harga awal item', exact: true }),
+      page.getByRole('textbox', { name: 'Diskon nominal item', exact: true }),
+      page.getByRole('spinbutton', { name: 'Pajak persen item', exact: true }),
+    ].map(async (control) => (await control.boundingBox())!.y),
+  );
+  expect(Math.max(...inputTops) - Math.min(...inputTops)).toBeLessThan(1);
+  await expect(page.getByRole('textbox', { name: 'Diskon nominal item', exact: true })).toHaveValue(
+    '1.622.523',
+  );
+  await switchDiscount(page, 'item', 'Persentase (%)');
+  await switchDiscount(page, 'item', 'Nominal (Rp)');
+  await page.getByRole('textbox', { name: 'Diskon nominal item', exact: true }).fill('1622522');
   await page
     .getByRole('textbox', { name: 'Alasan koreksi item', exact: true })
     .fill('Nominal checked against original receipt');
@@ -966,5 +963,176 @@ test('financial blockers disable review with a note and re-reading requires expl
   await expect.poll(() => resets.length).toBe(1);
   expect(resets[0]).toEqual({ version: 1, resetReview: true });
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(f.errors).toEqual([]);
+});
+
+async function switchDiscount(page: Page, label: string, option: string) {
+  const trigger = page.getByRole('button', { name: new RegExp('^Jenis diskon ' + label + ':') });
+  await trigger.click();
+  const choices = page.getByRole('group', { name: 'Pilihan format diskon ' + label, exact: true });
+  await expect(choices.getByRole('button')).toHaveCount(1);
+  await choices.getByRole('button', { name: option, exact: true }).click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+}
+
+test('currency editing keeps grouping, caret, paste and fractional prices out of the API payload', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+  f.state.failAdd = false;
+  await openReview(page);
+  await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+  const form = page.getByRole('form', { name: 'Form tambah item', exact: true });
+  const price = form.getByRole('textbox', { name: 'Harga unit item baru', exact: true });
+  await price.fill('');
+  await price.pressSequentially('.5');
+  await expect(price).toHaveValue('0,5');
+  await price.fill('');
+  await price.pressSequentially('1234567');
+  await expect(price).toHaveValue('1.234.567');
+  await price.evaluate((input: HTMLInputElement) => input.setSelectionRange(2, 2));
+  await price.press('Backspace');
+  await expect(price).toHaveValue('234.567');
+  await price.press('ControlOrMeta+A');
+  await price.pressSequentially('1234.123456');
+  await expect(price).toHaveValue('1.234,123456');
+  // Replacing a middle digit must keep the caret in that position.
+  await price.evaluate((input: HTMLInputElement) => input.setSelectionRange(2, 3));
+  await price.pressSequentially('9');
+  await expect(price).toHaveValue('1.934,123456');
+  expect(await price.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(3);
+  await price.press('ControlOrMeta+A');
+  await price.evaluate((input: HTMLInputElement) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text', 'Rp 1.801.802,123456');
+    input.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
+    );
+  });
+  await expect(price).toHaveValue('1.801.802,123456');
+  await price.fill('1801,1234');
+  await form.getByRole('spinbutton', { name: 'Qty item baru', exact: true }).fill('10000');
+  await form
+    .getByRole('textbox', { name: 'Nama item baru', exact: true })
+    .fill('Decimal treatment');
+  await form
+    .getByRole('textbox', { name: 'Alasan penambahan item', exact: true })
+    .fill('Decimal unit price verified against the source');
+  await form.getByRole('button', { name: 'Simpan item baru', exact: true }).click();
+  await expect.poll(() => f.additions.length).toBe(1);
+  expect(f.additions[0].unitPrice).toBe(1801.1234);
+  expect(f.additions[0].quantity).toBe(10000);
+  expect(f.errors).toEqual([]);
+});
+
+for (const mobile of [false, true])
+  test(`discount suffix reveals one attached right-hand choice without covering fields (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: 1000 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+    await openReview(page, mobile);
+    await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+    const form = page.getByRole('form', { name: 'Form tambah item', exact: true });
+    await form.getByRole('textbox', { name: 'Harga unit item baru', exact: true }).fill('1801802');
+    await form
+      .getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true })
+      .fill('90.050017');
+    const trigger = form.getByRole('button', { name: /^Jenis diskon item baru:/ });
+    const choices = form.getByRole('group', {
+      name: 'Pilihan format diskon item baru',
+      exact: true,
+    });
+    const tax = form.getByRole('spinbutton', { name: 'Pajak persen item baru', exact: true });
+    await trigger.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `tmp/discount-suffix-closed-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    const taxBefore = await tax.boundingBox();
+    await expect(trigger).toHaveText('%');
+    await trigger.focus();
+    await trigger.press('Enter');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(choices.getByRole('button')).toHaveCount(1);
+    const option = choices.getByRole('button', { name: 'Nominal (Rp)', exact: true });
+    const optionBox = await option.boundingBox();
+    const choiceBox = await choices.boundingBox();
+    const input = form.getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true });
+    const groupBox = await input.locator('..').boundingBox();
+    const taxAfter = await tax.boundingBox();
+    expect(optionBox && choiceBox && groupBox && taxBefore && taxAfter).toBeTruthy();
+    expect(Math.abs(choiceBox!.height - groupBox!.height)).toBeLessThan(1);
+    expect(Math.abs(choiceBox!.y - groupBox!.y)).toBeLessThan(1);
+    expect(optionBox!.x).toBeGreaterThanOrEqual(groupBox!.x + groupBox!.width - 2);
+    expect(taxAfter).toEqual(taxBefore);
+    expect(await choices.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
+    await page.screenshot({
+      path: `tmp/discount-suffix-open-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    await page.keyboard.press('Tab');
+    await expect(option).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.press('ArrowRight');
+    await expect(option).toBeFocused();
+    await option.press('Enter');
+    await expect(
+      form.getByRole('textbox', { name: 'Diskon nominal item baru', exact: true }),
+    ).toHaveValue('1.622.523');
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveText('Rp');
+    await trigger.click();
+    await expect(choices.getByRole('button')).toHaveCount(1);
+    await expect(
+      choices.getByRole('button', { name: 'Persentase (%)', exact: true }),
+    ).toBeVisible();
+    await tax.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await trigger.click();
+    const motion = await choices.locator('.discount-format-slide').evaluate((el) => {
+      const css = getComputedStyle(el);
+      return { properties: css.transitionProperty, duration: css.transitionDuration };
+    });
+    expect(motion.properties).toBe('transform, opacity, visibility');
+    expect(motion.duration).toContain('0.28s');
+    expect(f.errors).toEqual([]);
+  });
+
+test('discount disclosure interpolates across frames instead of appearing at its final position', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await openReview(page);
+  await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+  const trigger = page.getByRole('button', { name: /^Jenis diskon item baru:/ });
+  await trigger.scrollIntoViewIfNeeded();
+  const samples = await trigger.evaluate((control: HTMLButtonElement) => {
+    const root = control.closest('[data-discount-control]')!;
+    const front = root.querySelector('.discount-format-front')!;
+    const slide = root.querySelector('.discount-format-slide')!;
+    const frames: { margin: number; opacity: number }[] = [];
+    control.click();
+    return new Promise<typeof frames>((resolve) => {
+      const start = performance.now();
+      function frame() {
+        frames.push({
+          margin: parseFloat(getComputedStyle(front).marginRight),
+          opacity: parseFloat(getComputedStyle(slide).opacity),
+        });
+        if (performance.now() - start < 340) requestAnimationFrame(frame);
+        else resolve(frames);
+      }
+      requestAnimationFrame(frame);
+    });
+  });
+  expect(samples.filter(({ margin }) => margin > 1 && margin < 43).length).toBeGreaterThan(2);
+  expect(samples.filter(({ opacity }) => opacity > 0 && opacity < 0.99).length).toBeGreaterThan(2);
+  expect(samples.at(-1)!.margin).toBeCloseTo(44, 0);
+  expect(samples.at(-1)!.opacity).toBeCloseTo(1, 2);
+  await page.screenshot({ path: 'tmp/discount-smooth-reveal.png' });
   expect(f.errors).toEqual([]);
 });

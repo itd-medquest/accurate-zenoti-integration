@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { isFreeConsultation } from '../utils/redemption';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import {
   InputGroup,
   InputGroupAddon,
@@ -219,6 +220,13 @@ export function EditableImportItem({
                 disabled={disabled || item.redeemed}
                 label="item"
               />
+            ) : editing && key === 'unitPrice' ? (
+              <CurrencyInput
+                aria-label="Harga awal item"
+                value={draft.unitPrice}
+                disabled={disabled}
+                onValueChange={(value) => setDraft({ ...draft, unitPrice: value })}
+              />
             ) : editing ? (
               <InputGroup>
                 <InputGroupInput
@@ -246,9 +254,11 @@ export function EditableImportItem({
           </TableCell>
         ))}
         <TableCell>
-          {editing
-            ? final(result ? net : NaN)
-            : money(item.unitPrice * item.quantity - item.discount)}
+          <span className={cn(editing && 'flex h-10.5 items-center')}>
+            {editing
+              ? final(result ? net : NaN)
+              : money(item.unitPrice * item.quantity - item.discount)}
+          </span>
         </TableCell>
         <TableCell>
           {editing ? (
@@ -280,9 +290,13 @@ export function EditableImportItem({
               'import-item-status-cell',
           )}
         >
-          {editing
-            ? final(item.redeemed ? 0 : result ? net + result.tax : NaN)
-            : money(item.redeemed ? 0 : item.unitPrice * item.quantity - item.discount + item.tax)}
+          <span className={cn(editing && 'flex h-10.5 items-center')}>
+            {editing
+              ? final(item.redeemed ? 0 : result ? net + result.tax : NaN)
+              : money(
+                  item.redeemed ? 0 : item.unitPrice * item.quantity - item.discount + item.tax,
+                )}
+          </span>
           {!editing && (mappingStatus || item.redeemed || isFreeConsultation(item)) && (
             <div className="import-item-inline-status">
               {mappingStatus || (
@@ -319,14 +333,14 @@ export function EditableImportItem({
             </p>
             <p>
               Diskon persen dihitung dari harga × qty; diskon nominal berlaku untuk total baris.
-              Pajak (%) dihitung setelah diskon. Pecahan
-              diskon dan pajak dibulatkan ke rupiah terdekat.
+              Pajak (%) dihitung setelah diskon. Pecahan diskon dan pajak dibulatkan ke rupiah
+              terdekat.
             </p>
             {numericInputComplete && !result && (
               <p role="alert">
-                Periksa qty dan harga unit. Diskon persen dan pajak harus 0–100%, maksimal 6 desimal;
-                diskon nominal maksimal harga baris. Qty ×
-                harga unit harus menghasilkan rupiah bulat.
+                Periksa qty dan harga unit. Diskon persen dan pajak harus 0–100%, maksimal 6
+                desimal; diskon nominal maksimal harga baris. Qty × harga unit harus menghasilkan
+                rupiah bulat.
               </p>
             )}
             {error && <p role="alert">{error}</p>}

@@ -856,7 +856,7 @@ test('item correction UI cancels safely, confirms reviewed edits, and resets ins
   await expect(modal.locator('.import-item-correction [role="alert"]')).toContainText(
     'Restart backend',
   );
-  await expect(modal.getByLabel('Harga awal item', { exact: true })).toHaveValue('8392321');
+  await expect(modal.getByLabel('Harga awal item', { exact: true })).toHaveValue('8.392.321');
   expect(writes).toHaveLength(0);
   page.once('dialog', (confirmation) => confirmation.accept());
   await modal.getByRole('button', { name: 'Simpan perubahan item', exact: true }).click();

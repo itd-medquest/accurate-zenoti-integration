@@ -3,6 +3,7 @@ import { DiscountInput, discountPayload, type DiscountDraft } from './discount-i
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import { addItem } from '@/features/easyrecap/imports/services/imports.service';
 import { calculateNewItem } from '@/features/easyrecap/invoices/utils/package-calculation';
@@ -158,6 +159,15 @@ export function AddImportItem({
                     disabled={disabled}
                     label="item baru"
                   />
+                ) : key === 'unitPrice' ? (
+                  <CurrencyInput
+                    id={`new-item-${key}`}
+                    aria-label="Harga unit item baru"
+                    required
+                    disabled={disabled}
+                    value={draft.unitPrice}
+                    onValueChange={(value) => update('unitPrice', value)}
+                  />
                 ) : (
                   <Input
                     id={`new-item-${key}`}
@@ -172,7 +182,7 @@ export function AddImportItem({
                     type="number"
                     required
                     min={key === 'quantity' ? 1 : 0}
-                    max={key === 'quantity' ? 10000 : key === 'unitPrice' ? 2147483647 : 100}
+                    max={key === 'quantity' ? 10000 : 100}
                     step={key === 'quantity' ? 1 : 'any'}
                     disabled={disabled}
                     value={draft[key]}
