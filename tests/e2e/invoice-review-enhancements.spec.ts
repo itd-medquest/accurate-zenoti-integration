@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Batch, ImportHistoryEntry, ImportSummary } from '../../src/features/easyrecap/imports/types';
+import type {
+  Batch,
+  ImportHistoryEntry,
+  ImportSummary,
+} from '../../src/features/easyrecap/imports/types';
 import type { addItem } from '../../src/features/easyrecap/imports/services/imports.service';
 import { receiptPdf } from '../fixtures/receipt-fixture';
 import { selectOption } from '../helpers/select-option';
@@ -775,5 +779,192 @@ test('workflow checks completed stages, keeps failed delivery status, and provid
   expect(Math.abs(mobileZoom.y - mobileNext.y)).toBeLessThan(8);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'tmp/invoice-pdf-controls-mobile.png' });
+  expect(f.errors).toEqual([]);
+});
+
+for (const mobile of [false, true])
+  test(`nominal discounts convert for display without changing exact rupiah input (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+    f.state.failAdd = false;
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: 1000 });
+    await openReview(page, mobile);
+    await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+    const form = page.getByRole('form', { name: 'Form tambah item', exact: true });
+    await form
+      .getByRole('textbox', { name: 'Nama item baru', exact: true })
+      .fill('Nominal source treatment');
+    await form
+      .getByRole('spinbutton', { name: 'Harga unit item baru', exact: true })
+      .fill('1801802');
+    await selectOption(
+      page.getByRole('combobox', { name: 'Jenis diskon item baru', exact: true }),
+      { label: 'Nominal (Rp)' },
+    );
+    await form
+      .getByRole('spinbutton', { name: 'Diskon nominal item baru', exact: true })
+      .fill('1622523');
+    await form.getByRole('spinbutton', { name: 'Pajak persen item baru', exact: true }).fill('11');
+    await form
+      .getByRole('textbox', { name: 'Alasan penambahan item', exact: true })
+      .fill('Treatment and nominal discount verified against the source');
+    await expect(form).toContainText(/Rp\s*179\.279/);
+    await expect(form).toContainText(/Rp\s*199\.000/);
+    await selectOption(
+      page.getByRole('combobox', { name: 'Jenis diskon item baru', exact: true }),
+      { label: 'Persentase (%)' },
+    );
+    await expect(
+      form.getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true }),
+    ).toHaveValue('90.050017');
+    await expect(form).toContainText(/Rp\s*199\.000/);
+    await selectOption(
+      page.getByRole('combobox', { name: 'Jenis diskon item baru', exact: true }),
+      { label: 'Nominal (Rp)' },
+    );
+    await expect(
+      form.getByRole('spinbutton', { name: 'Diskon nominal item baru', exact: true }),
+    ).toHaveValue('1622523');
+    await form.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: 'tmp/nominal-discount-' + (mobile ? 'mobile' : 'desktop') + '.png',
+    });
+    await form.getByRole('button', { name: 'Simpan item baru', exact: true }).click();
+    await expect.poll(() => f.additions.length).toBe(1);
+    expect(f.additions[0].discountAmount).toBe(1622523);
+    expect(f.additions[0].discountPercent).toBeUndefined();
+    expect(f.errors).toEqual([]);
+  });
+
+test('an exact nominal discount can be edited without submitting its derived percentage', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mapped: true });
+  const item = f.batch.rows[0].candidate.items[0];
+  Object.assign(item, { unitPrice: 1801802, discount: 1622523, tax: 19721 });
+  const corrections: Record<string, unknown>[] = [];
+  await page.route('**/api/imports/review-batch/rows/review-row/items/service-1', async (route) => {
+    const input: Record<string, unknown> = route.request().postDataJSON();
+    corrections.push(input);
+    f.batch.version++;
+    item.discount = Number(input.discountAmount);
+    return route.fulfill({ json: f.batch });
+  });
+  await openReview(page);
+  await page.getByRole('button', { name: 'Edit item Layanan Uji', exact: true }).click();
+  await expect(
+    page.getByRole('spinbutton', { name: 'Diskon nominal item', exact: true }),
+  ).toHaveValue('1622523');
+  await selectOption(page.getByRole('combobox', { name: 'Jenis diskon item', exact: true }), {
+    label: 'Persentase (%)',
+  });
+  await selectOption(page.getByRole('combobox', { name: 'Jenis diskon item', exact: true }), {
+    label: 'Nominal (Rp)',
+  });
+  await page.getByRole('spinbutton', { name: 'Diskon nominal item', exact: true }).fill('1622522');
+  await page
+    .getByRole('textbox', { name: 'Alasan koreksi item', exact: true })
+    .fill('Nominal checked against original receipt');
+  await page.getByRole('button', { name: 'Simpan perubahan item', exact: true }).click();
+  await expect.poll(() => corrections.length).toBe(1);
+  expect(corrections[0].discountAmount).toBe(1622522);
+  expect(corrections[0].discountPercent).toBeUndefined();
+  expect(f.errors).toEqual([]);
+});
+
+test('a package extraction note requires a reason and stays visible after its review is saved', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mapped: true });
+  const row = f.batch.rows[0];
+  const parserError =
+    'Rincian tabel Benefit belum terbaca lengkap. Lengkapi semua layanan sesuai dokumen sumber.';
+  row.errors = [parserError];
+  row.status = 'REVIEW';
+  row.exceptionReview = { errors: [parserError], allowed: true, blockers: [], accepted: false };
+  const acknowledgements: Record<string, unknown>[] = [];
+  await page.route('**/api/imports/review-batch/rows/review-row/reviewed', async (route) => {
+    const input: Record<string, unknown> = route.request().postDataJSON();
+    acknowledgements.push(input);
+    row.candidate.accountingReviewedAt = '2026-11-24T05:00:00Z';
+    row.candidate.reviewException = {
+      reason: String(input.exceptionReason),
+      actorId: 'review-admin',
+      reviewedAt: '2026-11-24T05:00:00Z',
+      fingerprint: 'snapshot',
+      errors: [parserError],
+    };
+    row.exceptionReview!.accepted = true;
+    row.errors = [];
+    f.batch.version++;
+    return route.fulfill({ json: f.batch });
+  });
+  await openReview(page);
+  const panel = page.getByRole('alert', {
+    name: 'Pemeriksaan invoice dengan catatan',
+    exact: true,
+  });
+  await panel
+    .getByRole('checkbox', { name: 'Simpan pemeriksaan dengan catatan', exact: true })
+    .check();
+  const save = page.getByRole('button', { name: 'Simpan pemeriksaan dengan catatan', exact: true });
+  await expect(save).toBeDisabled();
+  const reason =
+    'All treatments manually checked and reconciled against the original Benefit table';
+  await panel
+    .getByRole('textbox', { name: 'Alasan melanjutkan dengan catatan', exact: true })
+    .fill(reason);
+  await save.click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(acknowledgements[0].exceptionReason).toBe(reason);
+  await expect(
+    page.getByRole('button', { name: 'Submit dengan catatan', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Periksa INV-UI-001', exact: true }).click();
+  await expect(panel).toContainText(reason);
+  await expect(panel).toContainText('Pemeriksaan dengan catatan tersimpan');
+  expect(f.errors).toEqual([]);
+});
+
+test('financial blockers disable review with a note and re-reading requires explicit confirmation', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mapped: true });
+  const row = f.batch.rows[0];
+  const error =
+    'Rincian tabel Benefit belum terbaca lengkap. Lengkapi semua layanan sesuai dokumen sumber.';
+  row.errors = [error, 'Jumlah item setelah diskon tidak sama dengan subtotal.'];
+  row.status = 'REVIEW';
+  row.exceptionReview = {
+    errors: [error],
+    allowed: false,
+    blockers: ['Jumlah item setelah diskon tidak sama dengan subtotal.'],
+    accepted: false,
+  };
+  const resets: Record<string, unknown>[] = [];
+  await page.route('**/api/imports/review-batch/files/source-file/reparse', async (route) => {
+    resets.push(route.request().postDataJSON());
+    row.errors = [];
+    row.exceptionReview = undefined;
+    f.batch.version++;
+    return route.fulfill({ json: f.batch });
+  });
+  await openReview(page);
+  const panel = page.getByRole('alert', {
+    name: 'Pemeriksaan invoice dengan catatan',
+    exact: true,
+  });
+  await expect(
+    panel.getByRole('checkbox', { name: 'Simpan pemeriksaan dengan catatan', exact: true }),
+  ).toBeDisabled();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await panel.getByRole('button', { name: 'Baca ulang detail Benefit', exact: true }).click();
+  expect(resets).toEqual([]);
+  page.once('dialog', (dialog) => dialog.accept());
+  await panel.getByRole('button', { name: 'Baca ulang detail Benefit', exact: true }).click();
+  await expect.poll(() => resets.length).toBe(1);
+  expect(resets[0]).toEqual({ version: 1, resetReview: true });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(f.errors).toEqual([]);
 });

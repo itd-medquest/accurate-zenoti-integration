@@ -1,4 +1,5 @@
 'use client';
+import { DiscountInput, discountPayload, type DiscountDraft } from './discount-input';
 import { Badge } from '@/components/ui/badge';
 import { isFreeConsultation } from '../utils/redemption';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,10 @@ import {
 import { TableCell, TableRow } from '@/components/ui/table';
 import { correctItem } from '@/features/easyrecap/imports/services/imports.service';
 import type { EditableItem } from '@/features/easyrecap/imports/types';
-import { formatDiscountPercent, lineDiscountPercent } from '@/features/easyrecap/invoices/utils/discount';
+import {
+  formatDiscountPercent,
+  lineDiscountPercent,
+} from '@/features/easyrecap/invoices/utils/discount';
 import {
   calculateItemCorrection,
   lineTaxPercent,
@@ -66,32 +70,44 @@ export function EditableImportItem({
     taxPercent: String(lineTaxPercent(item)),
   });
   const [draft, setDraft] = useState(initial);
+  const [discountDraft, setDiscountDraft] = useState<DiscountDraft>(() => ({
+    mode: item.discountPercent === undefined && item.discount > 0 ? 'amount' : 'percent',
+    value:
+      item.discountPercent === undefined && item.discount > 0
+        ? String(item.discount)
+        : initial().discountPercent,
+    exactAmount: item.discount,
+    basis: item.quantity * item.unitPrice,
+  }));
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const quantity = Number(draft.quantity),
     unitPrice = Number(draft.unitPrice),
     taxPercent = Number(draft.taxPercent),
-    discountPercent = Number(draft.discountPercent);
-  const discountChanged = discountPercent !== Number(initial().discountPercent);
+    base = quantity * unitPrice;
+  const enteredDiscount = discountPayload(base, discountDraft);
+  const enteredAmount =
+    discountDraft.mode === 'amount' || enteredDiscount.discountAmount !== undefined
+      ? enteredDiscount.discountAmount
+      : roundedPercentageAmount(base, enteredDiscount.discountPercent!);
+  const discountChanged = enteredAmount !== item.discount;
   const taxChanged = taxPercent !== Number(initial().taxPercent);
-  const needsPercent =
+  const needsDiscount =
     discountChanged || quantity !== item.quantity || unitPrice !== item.unitPrice;
-  const discount = needsPercent
-    ? roundedPercentageAmount(quantity * unitPrice, discountPercent)
-    : item.discount;
+  const discount = needsDiscount ? enteredAmount! : item.discount;
   const net = quantity * unitPrice - discount;
   const needsTaxPercent = taxChanged || net !== item.quantity * item.unitPrice - item.discount;
   const numericInputComplete = [
     draft.quantity,
     draft.unitPrice,
-    draft.discountPercent,
+    discountDraft.value,
     draft.taxPercent,
   ].every((value) => value.trim() !== '');
   const result = numericInputComplete
     ? calculateItemCorrection(item, {
         quantity,
         unitPrice,
-        ...(needsPercent ? { discountPercent } : {}),
+        ...(needsDiscount ? enteredDiscount : {}),
         ...(needsTaxPercent ? { taxPercent } : {}),
       })
     : null;
@@ -122,7 +138,7 @@ export function EditableImportItem({
         quantity,
         unitPrice,
         reason: reason.trim(),
-        ...(needsPercent ? { discountPercent } : {}),
+        ...(needsDiscount ? enteredDiscount : {}),
         ...(needsTaxPercent ? { taxPercent } : {}),
       });
       onSaved(batch);
@@ -195,30 +211,35 @@ export function EditableImportItem({
         </TableCell>
         {(['quantity', 'unitPrice', 'discountPercent'] as const).map((key, index) => (
           <TableCell key={key}>
-            {editing ? (
+            {editing && key === 'discountPercent' ? (
+              <DiscountInput
+                base={base}
+                value={discountDraft}
+                onChange={setDiscountDraft}
+                disabled={disabled || item.redeemed}
+                label="item"
+              />
+            ) : editing ? (
               <InputGroup>
                 <InputGroupInput
                   aria-label={['Qty item', 'Harga awal item', 'Diskon persen item'][index]}
                   type="number"
                   min={key === 'quantity' ? '0.000001' : 0}
-                  max={key === 'discountPercent' ? 100 : key === 'quantity' ? 10000 : 2147483647}
+                  max={key === 'quantity' ? 10000 : 2147483647}
                   step="any"
                   value={draft[key]}
-                  disabled={disabled || (item.redeemed && key === 'discountPercent')}
+                  disabled={disabled}
                   onChange={(e) => {
                     setDraft({ ...draft, [key]: e.target.value });
                   }}
                 />
-                {key === 'discountPercent' && (
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText aria-hidden="true">%</InputGroupText>
-                  </InputGroupAddon>
-                )}
               </InputGroup>
             ) : key === 'quantity' ? (
               item.quantity
             ) : key === 'unitPrice' ? (
               unitMoney(item.unitPrice)
+            ) : item.discountPercent === undefined && item.discount > 0 ? (
+              money(item.discount)
             ) : (
               formatDiscountPercent(item)
             )}
@@ -297,12 +318,14 @@ export function EditableImportItem({
               menghalangi submit.
             </p>
             <p>
-              Diskon (%) dihitung dari harga × qty. Pajak (%) dihitung setelah diskon. Pecahan
+              Diskon persen dihitung dari harga × qty; diskon nominal berlaku untuk total baris.
+              Pajak (%) dihitung setelah diskon. Pecahan
               diskon dan pajak dibulatkan ke rupiah terdekat.
             </p>
             {numericInputComplete && !result && (
               <p role="alert">
-                Periksa qty dan harga unit. Diskon dan pajak harus 0–100%, maksimal 6 desimal. Qty ×
+                Periksa qty dan harga unit. Diskon persen dan pajak harus 0–100%, maksimal 6 desimal;
+                diskon nominal maksimal harga baris. Qty ×
                 harga unit harus menghasilkan rupiah bulat.
               </p>
             )}

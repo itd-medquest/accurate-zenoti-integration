@@ -1,4 +1,5 @@
 'use client';
+import { DiscountInput, discountPayload, type DiscountDraft } from './discount-input';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -43,16 +44,17 @@ export function AddImportItem({
     taxPercent: '0',
     reason: '',
   });
+  const [discount, setDiscount] = useState<DiscountDraft>({ mode: 'percent', value: '0' });
   const [error, setError] = useState('');
   const [master, setMaster] = useState<AccurateMaster>();
   const input = {
     name: draft.name.trim(),
     quantity: Number(draft.quantity),
     unitPrice: Number(draft.unitPrice),
-    discountPercent: Number(draft.discountPercent),
+    ...discountPayload(Number(draft.quantity) * Number(draft.unitPrice), discount),
     taxPercent: Number(draft.taxPercent),
   };
-  const result = [draft.quantity, draft.unitPrice, draft.discountPercent, draft.taxPercent].every(
+  const result = [draft.quantity, draft.unitPrice, discount.value, draft.taxPercent].every(
     (v) => v.trim() !== '',
   )
     ? calculateNewItem(input)
@@ -62,7 +64,7 @@ export function AddImportItem({
     !(
       input.name.toLowerCase() === 'consultation' &&
       input.unitPrice === 0 &&
-      input.discountPercent === 0 &&
+      (result?.items[0].discount ?? 0) === 0 &&
       input.taxPercent === 0
     );
   const valid =
@@ -144,9 +146,21 @@ export function AddImportItem({
           {(['quantity', 'unitPrice', 'discountPercent', 'taxPercent'] as const).map(
             (key, index) => (
               <Field key={key}>
-                <FieldLabel className="flex w-full flex-col items-stretch gap-2">
-                  {['Qty', 'Harga awal / unit', 'Diskon (%)', 'Pajak (%)'][index]}
+                <FieldLabel className="w-full items-start" htmlFor={`new-item-${key}`}>
+                  {['Qty', 'Harga awal / unit', 'Diskon', 'Pajak (%)'][index]}
+                </FieldLabel>
+                {key === 'discountPercent' ? (
+                  <DiscountInput
+                    id={`new-item-${key}`}
+                    base={input.quantity * input.unitPrice}
+                    value={discount}
+                    onChange={setDiscount}
+                    disabled={disabled}
+                    label="item baru"
+                  />
+                ) : (
                   <Input
+                    id={`new-item-${key}`}
                     aria-label={
                       [
                         'Qty item baru',
@@ -162,9 +176,9 @@ export function AddImportItem({
                     step={key === 'quantity' ? 1 : 'any'}
                     disabled={disabled}
                     value={draft[key]}
-                    onChange={(e) => update(key, e.target.value)}
+                    onChange={(event) => update(key, event.target.value)}
                   />
-                </FieldLabel>
+                )}
               </Field>
             ),
           )}

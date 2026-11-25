@@ -23,6 +23,7 @@ import {
 import { Toast } from '@/components/ui/toast';
 import { ImportDeliveryNotice } from './import-delivery-notice';
 import { AccurateMappingPanel } from './accurate-mapping-panel';
+import { ImportExceptionReview } from './import-exception-review';
 import { ImportValidationNotice } from './import-validation-notice';
 import { RedemptionNotice } from './redemption-notice';
 import { chargeableItems, isFullRedemption, isLocalOnlyInvoice } from '../utils/redemption';
@@ -131,6 +132,8 @@ export function ImportsView({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [mappingItemId, setMappingItemId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [withException, setWithException] = useState(false);
+  const [exceptionReason, setExceptionReason] = useState('');
   const [draftStatus, setDraftStatus] = useState('UNKNOWN');
   const [previouslyReviewed, setPreviouslyReviewed] = useState(false);
   const [detailPage, setDetailPage] = useState(1);
@@ -215,6 +218,7 @@ export function ImportsView({
     refreshBatch,
   );
   const eligible = batch?.rows.filter((r) => !r.errors.length && r.status !== 'CONFLICT') ?? [];
+  const hasExceptionSubmission = eligible.some((row) => row.exceptionReview?.accepted);
   const duplicateCount = eligible.filter((r) => r.status === 'DUPLICATE').length;
   const localSaveCount = eligible.filter(
     (r) => r.status !== 'DUPLICATE' && isLocalOnlyInvoice(r.candidate),
@@ -240,12 +244,24 @@ export function ImportsView({
   const previewFile = batch?.files.find((f) => f.id === previewFileId);
   const deleteFile = batch?.files.find((f) => f.id === deleteFileId);
   const failedRead = (row: Row) => !!batch?.files.find((f) => f.id === row.fileId)?.error;
-  async function reparseFile(fileId: string) {
+  async function reparseFile(fileId: string, resetReview = false) {
     if (!batch) return;
+    if (
+      resetReview &&
+      !window.confirm(
+        'Baca ulang seluruh PDF dari dokumen sumber? Koreksi, mapping, status, dan pemeriksaan manual pada file ini akan diganti hasil pembacaan baru. Riwayat sebelumnya tetap tercatat.',
+      )
+    )
+      return;
     await action(async () => {
       setReparseFileId(fileId);
       try {
-        adopt(await reparseSourceFile(batch.id, fileId, { version: batch.version }));
+        adopt(
+          await reparseSourceFile(batch.id, fileId, {
+            version: batch.version,
+            ...(resetReview ? { resetReview: true } : {}),
+          }),
+        );
         closeDetail();
         setNotice('PDF berhasil dibaca ulang. Periksa hasilnya sebelum submit.');
       } finally {
@@ -260,6 +276,8 @@ export function ImportsView({
     );
   }
   function openDetail(row: Row) {
+    setWithException(false);
+    setExceptionReason('');
     setEditingItemId(null);
     setMappingItemId(null);
     setDeletingItemId(null);
@@ -290,7 +308,10 @@ export function ImportsView({
         });
         adopt(latest);
       }
-      latest = await markReviewed(batch.id, detail.id, { version: latest.version });
+      latest = await markReviewed(batch.id, detail.id, {
+        version: latest.version,
+        ...(withException ? { exceptionReason: exceptionReason.trim() } : {}),
+      });
       adopt(latest);
       closeDetail();
       const saved = latest.rows.find((row) => row.id === detail.id);
@@ -1097,6 +1118,13 @@ export function ImportsView({
                           disabled={busy || !reviewed || !selection.length}
                           onClick={() =>
                             action(async () => {
+                              if (
+                                hasExceptionSubmission &&
+                                !window.confirm(
+                                  'Kirim invoice dengan catatan pemeriksaan? Alasan dan identitas pemeriksa tersimpan dalam audit.',
+                                )
+                              )
+                                return;
                               const result = await submitBatch(batch.id, {
                                 version: batch.version,
                                 rowIds: selection,
@@ -1122,13 +1150,17 @@ export function ImportsView({
                             ? 'Memproses…'
                             : localOnlyBatch || (localSaveCount > 0 && newInvoiceCount === 0)
                               ? 'Simpan invoice'
-                              : localSaveCount && newInvoiceCount
-                                ? 'Simpan & submit invoice'
-                                : newInvoiceCount || !duplicateCount
-                                  ? batch.mode === 'live'
-                                    ? 'Submit Faktur ke Accurate'
-                                    : 'Submit ke Accurate (simulasi)'
-                                  : 'Selesaikan review (sudah ada)'}
+                              : hasExceptionSubmission
+                                ? batch.mode === 'live'
+                                  ? 'Submit dengan catatan'
+                                  : 'Submit dengan catatan (simulasi)'
+                                : localSaveCount && newInvoiceCount
+                                  ? 'Simpan & submit invoice'
+                                  : newInvoiceCount || !duplicateCount
+                                    ? batch.mode === 'live'
+                                      ? 'Submit Faktur ke Accurate'
+                                      : 'Submit ke Accurate (simulasi)'
+                                    : 'Selesaikan review (sudah ada)'}
                         </Button>
                       </div>
                     </div>
@@ -1446,6 +1478,16 @@ export function ImportsView({
                   {batch.status === 'PREVIEW' && (
                     <ImportValidationNotice row={detail} businessStatus={draftStatus} />
                   )}
+                  <ImportExceptionReview
+                    row={detail}
+                    editable={batch.status === 'PREVIEW'}
+                    checked={withException}
+                    reason={exceptionReason}
+                    onChecked={setWithException}
+                    onReason={setExceptionReason}
+                    disabled={busy || !!editingItemId}
+                    onReparse={() => void reparseFile(detail.fileId, true)}
+                  />
                   <RedemptionNotice candidate={detail.candidate} />
                   {batch.mode === 'live' && !isLocalOnlyInvoice(detail.candidate) && (
                     <AccurateMappingPanel
@@ -1585,7 +1627,7 @@ export function ImportsView({
                             <TableHead>LAYANAN / ITEM</TableHead>
                             <TableHead>QTY</TableHead>
                             <TableHead>HARGA AWAL</TableHead>
-                            <TableHead>DISKON (%)</TableHead>
+                            <TableHead>DISKON</TableHead>
                             <TableHead>SETELAH DISKON</TableHead>
                             <TableHead>PAJAK</TableHead>
                             <TableHead>FINAL ITEM</TableHead>
@@ -1819,16 +1861,24 @@ export function ImportsView({
                 <Button
                   className="button inline-flex items-center justify-center whitespace-nowrap primary"
                   disabled={
-                    busy || !!editingItemId || (batch.status === 'PREVIEW' && failedRead(detail))
+                    busy ||
+                    !!editingItemId ||
+                    (batch.status === 'PREVIEW' && failedRead(detail)) ||
+                    (withException &&
+                      (!detail.exceptionReview?.allowed ||
+                        !['OPEN', 'CLOSED'].includes(draftStatus) ||
+                        exceptionReason.trim().length < 10))
                   }
                   onClick={saveInspection}
                   variant="default"
                 >
                   {batch.status !== 'PREVIEW'
                     ? 'Tutup'
-                    : previouslyReviewed
-                      ? 'Perbarui Pemeriksaan'
-                      : 'Selesai memeriksa'}
+                    : withException
+                      ? 'Simpan pemeriksaan dengan catatan'
+                      : previouslyReviewed
+                        ? 'Perbarui Pemeriksaan'
+                        : 'Selesai memeriksa'}
                 </Button>
               </div>
             </>

@@ -135,3 +135,5 @@ Page routes live under `app/(workspace)/easyrecap/` and `app/(workspace)/command
 ## Git Rules
 
 Create a branch for each change, run the relevant checks, and open a pull request with a change summary and validation results. Keep `package-lock.json` to ensure consistent installations across the team. Use `.env.example` as the configuration reference; exclude local environment values, uploaded data, and build/test artifacts from commits.
+
+See the [package benefit review guide](docs/package-benefits.md) for percentage/nominal discounts, review with a note, and re-reading older draft PDFs.

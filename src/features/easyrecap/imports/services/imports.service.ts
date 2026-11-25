@@ -23,7 +23,11 @@ export function getBatch(batchId: string, signal?: AbortSignal) {
   return api<Batch>(`/imports/${encodeURIComponent(batchId)}`, { signal });
 }
 
-export function reparseFile(batchId: string, fileId: string, input: { version: number }) {
+export function reparseFile(
+  batchId: string,
+  fileId: string,
+  input: { version: number; resetReview?: boolean },
+) {
   return api<Batch>(`/imports/${batchId}/files/${fileId}/reparse`, {
     method: 'POST',
     body: JSON.stringify(input),
@@ -41,7 +45,11 @@ export function reviewStatus(
   });
 }
 
-export function markReviewed(batchId: string, detailId: string, input: { version: number }) {
+export function markReviewed(
+  batchId: string,
+  detailId: string,
+  input: { version: number; exceptionReason?: string },
+) {
   return api<Batch>(`/imports/${batchId}/rows/${detailId}/reviewed`, {
     method: 'PATCH',
     body: JSON.stringify(input),
@@ -94,7 +102,8 @@ export function addItem(
     name: string;
     quantity: number;
     unitPrice: number;
-    discountPercent: number;
+    discountPercent?: number;
+    discountAmount?: number;
     taxPercent: number;
     version: number;
   },
@@ -112,6 +121,7 @@ export function correctItem(
   input: {
     taxPercent?: number | undefined;
     discountPercent?: number | undefined;
+    discountAmount?: number;
     version: number;
     name: string;
     quantity: number;

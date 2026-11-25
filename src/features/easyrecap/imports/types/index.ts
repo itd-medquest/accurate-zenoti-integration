@@ -1,4 +1,7 @@
-import type { AccurateDestination, AccurateSelection } from '@/features/easyrecap/invoices/types/accurate';
+import type {
+  AccurateDestination,
+  AccurateSelection,
+} from '@/features/easyrecap/invoices/types/accurate';
 export type Candidate = {
   receiptNumber?: string;
   accurateSelection?: AccurateSelection;
@@ -16,6 +19,13 @@ export type Candidate = {
     total: number;
   }[];
   accountingReviewedAt?: string;
+  reviewException?: {
+    reason: string;
+    actorId: string;
+    reviewedAt: string;
+    fingerprint: string;
+    errors: string[];
+  };
   extractionMethod?: 'text' | 'ocr';
   sourceSheet?: string;
   packageParents?: PackageLine[];
@@ -47,10 +57,17 @@ export type Candidate = {
     tax: number;
   }[];
   payments: { id: string; method: string; amount: number; paidAt: string }[];
-  benefits: { name: string; unitPrice: number; discountPercent: number; netAmount: number }[];
+  benefits: {
+    name: string;
+    unitPrice: number;
+    discountPercent?: number;
+    discountAmount?: number;
+    netAmount: number;
+  }[];
 };
 
 export type Row = {
+  exceptionReview?: { errors: string[]; allowed: boolean; blockers: string[]; accepted: boolean };
   syncError?: string | null;
   delivery?: { status: string; targetId: string | null; targetNumber: string | null } | null;
   id: string;
