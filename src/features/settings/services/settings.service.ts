@@ -55,6 +55,11 @@ export const deleteCompany = (id: string, confirmationName: string) =>
     method: 'DELETE',
     body: JSON.stringify({ confirmationName }),
   });
+export const renameCompany = (id: string, name: string, expectedName: string) =>
+  api<{ id: string; name: string }>(`/companies/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name, expectedName }),
+  });
 
 export function updateBranch(
   bId: string,

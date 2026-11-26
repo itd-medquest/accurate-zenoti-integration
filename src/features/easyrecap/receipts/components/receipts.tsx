@@ -62,6 +62,7 @@ const statusVariants = {
   SENDING: 'warning',
   SUCCEEDED: 'success',
   NEEDS_REVIEW: 'destructive',
+  PARTIAL: 'warning',
 } as const;
 
 export function ReceiptsView({
@@ -91,6 +92,7 @@ export function ReceiptsView({
     if (content) content.scrollTop = 0;
   }, [selected]);
   const [opening, setOpening] = useState('');
+  const [paymentFocusId, setPaymentFocusId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   const { data, busy, error, load } = useReceiptOverview(filters, !selected);
   const initialLoading = !data && !error;
@@ -119,6 +121,12 @@ export function ReceiptsView({
         onConfigure={onConfigure}
         canConfigureAccounts={canConfigureAccounts}
         onInvoice={onInvoice}
+        focusPayment={paymentFocusId === selected}
+        onPaymentFocused={() => setPaymentFocusId(null)}
+        onReceipt={(id, focusPayment) => {
+          setPaymentFocusId(focusPayment ? id : null);
+          router.push(receiptReviewPath(id));
+        }}
       />
     );
   const summaries = [
@@ -151,7 +159,9 @@ export function ReceiptsView({
       status: 'SUCCEEDED',
       value: data?.summary.succeeded,
       icon: CheckCheck,
-      hint: 'Terverifikasi di Accurate',
+      hint: data?.items.some((row) => row.mode === 'simulation')
+        ? 'Selesai sesuai mode penerimaan'
+        : 'Terverifikasi di Accurate',
       tone: 'brand',
     },
     {
@@ -162,6 +172,18 @@ export function ReceiptsView({
       hint: 'Penerimaan perlu ditinjau',
       tone: 'highlight',
     },
+    ...(data?.summary.partial
+      ? [
+          {
+            label: 'Diterima sebagian',
+            status: 'PARTIAL',
+            value: data.summary.partial,
+            icon: Clock3,
+            hint: 'Masih ada piutang menunggu dana masuk',
+            tone: 'highlight',
+          } as const,
+        ]
+      : []),
   ] as const;
   const hasFilters = !!(
     filters.search ||
@@ -173,7 +195,11 @@ export function ReceiptsView({
   return (
     <section aria-label="Riwayat Penerimaan Penjualan" className="flex min-w-0 flex-col gap-6">
       <div
-        className="grid grid-cols-2 gap-3 lg:grid-cols-5"
+        className={
+          summaries.length > 5
+            ? 'grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6'
+            : 'grid grid-cols-2 gap-3 lg:grid-cols-5'
+        }
         aria-label="Ringkasan status penerimaan"
       >
         {summaries.map(({ label, value, icon, hint, tone, status }) => (
@@ -184,7 +210,7 @@ export function ReceiptsView({
             icon={icon}
             hint={hint}
             tone={tone}
-            className="last:col-span-2 lg:last:col-span-1"
+            className={summaries.length > 5 ? '' : 'last:col-span-2 lg:last:col-span-1'}
             active={filters.status === status}
             loading={initialLoading}
             disabled={!!opening}
@@ -198,7 +224,9 @@ export function ReceiptsView({
           <div className="min-w-0">
             <CardTitle>Riwayat dan review penerimaan</CardTitle>
             <CardDescription>
-              Pembayaran dari invoice yang sudah terverifikasi di Accurate.
+              {data?.items.some((row) => row.mode === 'simulation')
+                ? 'Pembayaran dari faktur aktual dan hasil simulasi.'
+                : 'Pembayaran dari invoice yang sudah terverifikasi di Accurate.'}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -335,9 +363,11 @@ export function ReceiptsView({
                     <TableCell>{dateOnly(row.draft?.paymentDate || row.paidAt)}</TableCell>
                     <TableCell>
                       <p>
-                        {row.draft?.method
-                          ? methodLabels[row.draft.method]
-                          : (sourceMethodLabels[row.sourceMethod] ?? row.sourceMethod)}
+                        {row.sourceMethod === 'mixed'
+                          ? sourceMethodLabels.mixed
+                          : row.draft?.method
+                            ? methodLabels[row.draft.method]
+                            : (sourceMethodLabels[row.sourceMethod] ?? row.sourceMethod)}
                       </p>
                       {row.draft?.bank && (
                         <p className="mt-1 text-xs text-muted-foreground">{row.draft.bank}</p>
@@ -347,15 +377,41 @@ export function ReceiptsView({
                           {row.paymentCount} alokasi sumber
                         </Badge>
                       )}
+                      {(row.settlement?.paymentCount ?? 0) > 1 && (
+                        <Badge variant="secondary" className="mt-2">
+                          {row.settlement?.paymentCount} pembayaran
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.gross === null ? '—' : money(row.gross)}
+                      {row.settlement &&
+                        row.settlement.settled > 0 &&
+                        row.settlement.remaining > 0 && (
+                          <p className="mt-1 whitespace-normal text-xs text-muted-foreground">
+                            Sisa {money(row.settlement.remaining)}
+                          </p>
+                        )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.draft?.mappingId ? money(row.draft.feeAmount) : '—'}
+                      {row.settlement?.fee !== undefined &&
+                      (row.settlement.settled > 0 || row.draft?.mappingId)
+                        ? money(row.settlement.fee)
+                        : row.draft?.mappingId
+                          ? money(row.draft.feeAmount)
+                          : '—'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariants[row.status]}>{statusLabels[row.status]}</Badge>
+                      <Badge variant={statusVariants[row.status]}>
+                        {row.mode === 'simulation' && row.status === 'SUCCEEDED'
+                          ? 'Simulasi selesai'
+                          : statusLabels[row.status]}
+                      </Badge>
+                      {row.mode === 'simulation' && (
+                        <Badge variant="info" className="ml-2">
+                          Simulasi
+                        </Badge>
+                      )}
                       {row.error && (
                         <p className="mt-2 max-w-64 whitespace-normal text-xs text-destructive">
                           {row.error}

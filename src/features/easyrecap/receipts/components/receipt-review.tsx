@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePolledResource } from '@/hooks/use-polled-resource';
 import { format, parseISO } from 'date-fns';
 import { id as locale } from 'date-fns/locale';
@@ -12,6 +12,7 @@ import {
   CircleAlert,
   FileText,
   Info,
+  Pencil,
   Save,
   Send,
   Settings2,
@@ -42,6 +43,16 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ProgressiveList } from '@/components/ui/progressive-list';
 import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
@@ -50,6 +61,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { money, dateTime } from '@/lib/format';
 import { receiptFee } from '../lib/amounts';
+import { settlementAmounts } from '../lib/settlement';
+import { formatReceiptRate, parseReceiptRate } from '../lib/rates';
+import { ReceiptPaymentSelect, ReceiptSettlementHistory } from './receipt-settlement';
 import { ReceiptNumberDialog } from './receipt-number-dialog';
 import {
   getReceipt,
@@ -57,8 +71,15 @@ import {
   submitReceipt,
   checkReceipt,
   reopenReceipt,
+  prepareReceipt,
 } from '../services/receipts.service';
-import { methodLabels, sourceMethodLabels, statusLabels, type ReceiptDetail } from '../types';
+import {
+  methodLabels,
+  sourceMethodLabels,
+  statusLabels,
+  type ReceiptDetail,
+  type ReceiptAmountMode,
+} from '../types';
 
 function Form({
   data,
@@ -67,6 +88,7 @@ function Form({
   onConfigure,
   canConfigureAccounts = false,
   onInvoice,
+  onReceipt,
 }: {
   data: ReceiptDetail;
   refresh: () => Promise<void>;
@@ -74,13 +96,23 @@ function Form({
   onConfigure?: () => void;
   canConfigureAccounts?: boolean;
   onInvoice?: (id: string) => void;
+  onReceipt: (id: string, focusPayment?: boolean) => void;
 }) {
   const { draft, source, invoice, configuration } = data;
+  const simulation = draft.mode === 'simulation';
   const [mappingId, setMappingId] = useState(draft.mappingId ?? '');
   const [paymentDate, setPaymentDate] = useState(draft.paymentDate);
   const [reference, setReference] = useState(draft.paymentReference);
   const [notes, setNotes] = useState(draft.notes);
+  const [amountMode, setAmountMode] = useState<ReceiptAmountMode>(draft.amountMode ?? 'FULL');
+  const [inputAmount, setInputAmount] = useState(draft.inputAmount?.toString() ?? '');
   const [manualNumber, setManualNumber] = useState(data.receiptNumber ?? '');
+  const [rateOverrideBps, setRateOverrideBps] = useState<number | null>(
+    draft.rateOverrideBps ?? null,
+  );
+  const [rateOpen, setRateOpen] = useState(false);
+  const [rateInput, setRateInput] = useState('');
+  const rateTrigger = useRef<HTMLButtonElement>(null);
   const [dateOpen, setDateOpen] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -94,6 +126,9 @@ function Form({
     ? (source.receiptNumber ?? manualNumber)
     : (draft.targetNumber ?? draft.number);
   const mapping = configuration.mappings.find((row) => row.id === mappingId);
+  const defaultRateBps = mapping ? (mapping.rateBps ?? configuration.rates[mapping.method]) : 0;
+  const rateBps = editable && mapping ? (rateOverrideBps ?? defaultRateBps) : draft.rateBps;
+  const enteredRateBps = parseReceiptRate(rateInput);
   const mappingChanged =
     !!mapping && mapping.id === draft.mappingId && mapping.version !== draft.mappingVersion;
   const dirty =
@@ -101,16 +136,47 @@ function Form({
     (draft.number !== number ||
       mappingId !== (draft.mappingId ?? '') ||
       mappingChanged ||
+      rateOverrideBps !== (draft.rateOverrideBps ?? null) ||
+      (!!mapping && rateBps !== draft.rateBps) ||
+      amountMode !== (draft.amountMode ?? 'FULL') ||
+      (amountMode !== 'FULL' && inputAmount !== (draft.inputAmount?.toString() ?? '')) ||
       paymentDate !== draft.paymentDate ||
       reference !== draft.paymentReference ||
       notes !== draft.notes);
-  const values =
-    editable && mapping
-      ? receiptFee(draft.grossAmount, configuration.rates[mapping.method])
-      : draft.mappingId
-        ? { gross: draft.grossAmount, fee: draft.feeAmount, net: draft.netAmount }
-        : null;
-  const rateBps = editable && mapping ? configuration.rates[mapping.method] : draft.rateBps;
+  let amountError = '';
+  let values: { gross: number; fee: number; net: number } | null = draft.mappingId
+    ? { gross: draft.grossAmount, fee: draft.feeAmount, net: draft.netAmount }
+    : null;
+  if (editable && mapping) {
+    try {
+      const rows = data.settlement?.feeBasisByRate;
+      const basis = rows
+        ? rows
+            .filter((row) => row.method === mapping.method && row.rateBps === rateBps)
+            .reduce(
+              (total, row) => ({ gross: total.gross + row.gross, fee: total.fee + row.fee }),
+              { gross: 0, fee: 0 },
+            )
+        : rateBps === configuration.rates[mapping.method]
+          ? data.settlement?.feeBasis[mapping.method]
+          : undefined;
+      values = data.settlement
+        ? settlementAmounts({
+            remaining: data.settlement.available,
+            priorGross: basis?.gross ?? 0,
+            priorFee: basis?.fee ?? 0,
+            rateBps,
+            mode: amountMode,
+            amount: inputAmount ? Number(inputAmount) : null,
+          })
+        : receiptFee(draft.grossAmount, rateBps);
+    } catch (cause) {
+      values = null;
+      amountError = cause instanceof Error ? cause.message : 'Nominal penerimaan tidak valid.';
+    }
+  }
+  const partiallySettled =
+    draft.status === 'SUCCEEDED' && (data.settlement?.invoiceRemaining ?? 0) > 0;
   const account = editable
     ? mapping && {
         accountNo: mapping.accountNo,
@@ -130,6 +196,19 @@ function Form({
       setLeaveAction(() => action);
       setLeave(true);
     } else action();
+  }
+  async function openPayment(key: string, focusPayment = false) {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const next = await prepareReceipt(draft.invoiceId, key);
+      onReceipt(next.id, focusPayment);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Pembayaran belum dapat dibuka.');
+    } finally {
+      setBusy(false);
+    }
   }
   async function run(task?: () => Promise<unknown>) {
     if (busy) return;
@@ -153,18 +232,33 @@ function Form({
         </Button>
         <Badge
           variant={
-            draft.status === 'SUCCEEDED'
-              ? 'success'
-              : draft.status === 'NEEDS_REVIEW'
-                ? 'destructive'
-                : ['QUEUED', 'SENDING'].includes(draft.status)
-                  ? 'warning'
-                  : 'secondary'
+            partiallySettled
+              ? 'warning'
+              : draft.status === 'SUCCEEDED'
+                ? 'success'
+                : draft.status === 'NEEDS_REVIEW'
+                  ? 'destructive'
+                  : ['QUEUED', 'SENDING'].includes(draft.status)
+                    ? 'warning'
+                    : 'secondary'
           }
         >
-          {statusLabels[draft.status]}
+          {partiallySettled
+            ? statusLabels.PARTIAL
+            : simulation && draft.status === 'SUCCEEDED'
+              ? 'Simulasi selesai'
+              : statusLabels[draft.status]}
         </Badge>
       </div>
+      {simulation && (
+        <Alert variant="info">
+          <Info aria-hidden="true" />
+          <AlertDescription>
+            Mode simulasi. Penerimaan dan akun contoh hanya disimpan di intgrte; tidak dikirim ke
+            Accurate.
+          </AlertDescription>
+        </Alert>
+      )}
       {data.validation.message && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -179,7 +273,9 @@ function Form({
               <div className="min-w-0">
                 <CardTitle>Review penerimaan</CardTitle>
                 <CardDescription>
-                  Periksa pembayaran dari dokumen sumber sebelum mengirim ke Accurate.
+                  {simulation
+                    ? 'Periksa pembayaran dari dokumen sumber sebelum menjalankan simulasi.'
+                    : 'Periksa pembayaran dari dokumen sumber sebelum mengirim ke Accurate.'}
                 </CardDescription>
               </div>
               {onInvoice && (
@@ -197,7 +293,7 @@ function Form({
             <CardContent className="flex flex-col gap-5 pb-5">
               <dl className="m-0 grid gap-x-6 gap-y-5 sm:grid-cols-2">
                 {[
-                  ['Faktur Accurate', invoice.number],
+                  [simulation ? 'Faktur simulasi' : 'Faktur Accurate', invoice.number],
                   ['Customer', invoice.customer],
                   ['No. Bukti Accurate (No. Receipt)', number],
                   ['Pembayaran sumber', sourceMethodLabels[source.method] ?? source.method],
@@ -258,20 +354,26 @@ function Form({
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <div>
+          <Card id="receipt-payment-details">
+            <CardHeader className="flex-col items-stretch gap-1">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                 <CardTitle>Rincian pembayaran</CardTitle>
-                <CardDescription>
-                  Pilih bank dan metode yang benar. Biaya dihitung otomatis dari mapping tersimpan.
-                </CardDescription>
+                <ReceiptPaymentSelect
+                  data={data}
+                  disabled={busy}
+                  onPayment={(key) => navigate(() => void openPayment(key, true))}
+                />
               </div>
+              <CardDescription className="mt-0">
+                Pilih bank dan metode yang benar. Biaya dihitung otomatis dari mapping tersimpan.
+              </CardDescription>
             </CardHeader>
             <CardContent className="pb-5">
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (!editable || !mappingId || !mapping || !number) return;
+                  if (!editable || !mappingId || !mapping || !number || amountError || !values)
+                    return;
                   void run(() =>
                     saveReceipt(draft.id, {
                       mappingId,
@@ -280,6 +382,13 @@ function Form({
                       paymentReference: reference,
                       notes,
                       version: draft.version,
+                      rateOverrideBps,
+                      ...(data.settlement
+                        ? {
+                            amountMode,
+                            ...(amountMode !== 'FULL' ? { inputAmount: Number(inputAmount) } : {}),
+                          }
+                        : {}),
                       ...(data.actions.canSetNumber ? { receiptNumber: number } : {}),
                     }),
                   );
@@ -321,6 +430,9 @@ function Form({
                       value={mappingId}
                       onValueChange={(value) => {
                         setMappingId(value);
+                        setRateOverrideBps(
+                          value === draft.mappingId ? (draft.rateOverrideBps ?? null) : null,
+                        );
                         setReviewed(false);
                       }}
                       disabled={!editable || busy || unsupported}
@@ -404,6 +516,92 @@ function Form({
                         </div>
                       </AlertDescription>
                     </Alert>
+                  )}
+                  {data.settlement && editable && (
+                    <div className="flex flex-col gap-4 rounded-lg border p-4">
+                      <Field orientation="horizontal">
+                        <Checkbox
+                          id="receipt-partial"
+                          checked={amountMode !== 'FULL'}
+                          disabled={busy}
+                          onCheckedChange={(checked) => {
+                            setAmountMode(checked ? 'NET' : 'FULL');
+                            setInputAmount('');
+                            setReviewed(false);
+                          }}
+                        />
+                        <FieldLabel htmlFor="receipt-partial" className="font-normal">
+                          Catat nominal aktual / penerimaan sebagian
+                        </FieldLabel>
+                      </Field>
+                      {amountMode !== 'FULL' && (
+                        <>
+                          <FieldGroup className="grid items-start gap-4 sm:grid-cols-2">
+                            <Field>
+                              <FieldLabel htmlFor="receipt-amount-mode">
+                                Nominal yang dimasukkan
+                              </FieldLabel>
+                              <SelectField
+                                id="receipt-amount-mode"
+                                value={amountMode}
+                                disabled={busy}
+                                onValueChange={(value) => {
+                                  if (value === 'NET' || value === 'GROSS') {
+                                    setAmountMode(value);
+                                    setInputAmount('');
+                                    setReviewed(false);
+                                  }
+                                }}
+                              >
+                                <SelectFieldOption value="NET">
+                                  Dana bersih (sudah dipotong fee)
+                                </SelectFieldOption>
+                                <SelectFieldOption value="GROSS">
+                                  Sebelum dipotong fee
+                                </SelectFieldOption>
+                              </SelectField>
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="receipt-actual-amount">
+                                {amountMode === 'NET'
+                                  ? 'Dana bersih masuk rekening'
+                                  : 'Nominal sebelum fee'}
+                              </FieldLabel>
+                              <CurrencyInput
+                                id="receipt-actual-amount"
+                                value={inputAmount}
+                                fractionDigits={0}
+                                min={1}
+                                required
+                                disabled={busy}
+                                aria-invalid={!!amountError}
+                                aria-describedby="receipt-amount-help"
+                                onValueChange={(value) => {
+                                  setInputAmount(value);
+                                  setReviewed(false);
+                                }}
+                              />
+                            </Field>
+                          </FieldGroup>
+                          <p
+                            id="receipt-amount-help"
+                            className="text-xs leading-relaxed text-muted-foreground"
+                          >
+                            {amountMode === 'NET'
+                              ? 'Fee dihitung balik dari dana bersih dan tidak dipotong dua kali.'
+                              : 'Fee dihitung otomatis untuk mendapatkan dana bersih.'}{' '}
+                            Sisa pembayaran sumber {money(data.settlement.available)}. Sisa yang
+                            belum diterima tetap menjadi piutang{' '}
+                            {simulation ? 'pada simulasi.' : 'di Accurate.'}
+                          </p>
+                        </>
+                      )}
+                      {amountError && (
+                        <p role="alert" className="text-sm text-destructive">
+                          {amountError}
+                        </p>
+                      )}
+                    </div>
                   )}
                   <FieldGroup className="grid gap-4 sm:grid-cols-2">
                     <Field data-disabled={!editable || busy}>
@@ -497,7 +695,9 @@ function Form({
                             !reference.trim() ||
                             !paymentDate ||
                             !number ||
-                            unsupported
+                            unsupported ||
+                            !!amountError ||
+                            !values
                           }
                         >
                           <Save data-icon="inline-start" />
@@ -510,11 +710,21 @@ function Form({
               </form>
             </CardContent>
           </Card>
+          <ReceiptSettlementHistory
+            data={data}
+            disabled={busy}
+            onReceipt={(id) => navigate(() => onReceipt(id))}
+          />
         </div>
-        <Card className="min-w-0">
+        <Card
+          className="min-w-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring xl:sticky xl:top-5 xl:max-h-[calc(100dvh-9rem)] xl:overflow-y-auto"
+          role="region"
+          tabIndex={0}
+          aria-labelledby="receipt-summary-title"
+        >
           <CardHeader>
             <div>
-              <CardTitle>Ringkasan penerimaan</CardTitle>
+              <CardTitle id="receipt-summary-title">Ringkasan penerimaan</CardTitle>
               <CardDescription>
                 Nilai pembayaran dan biaya terpisah dari nilai penjualan pada faktur.
               </CardDescription>
@@ -524,19 +734,20 @@ function Form({
             <dl className="m-0 flex flex-col gap-4">
               {data.balance && (
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <dt className="text-sm text-muted-foreground">Sisa tagihan Accurate</dt>
+                  <dt className="text-sm text-muted-foreground">
+                    {simulation ? 'Sisa tagihan simulasi' : 'Sisa tagihan Accurate'}
+                  </dt>
                   <dd className="m-0 ml-auto break-words text-right font-medium tabular-nums">
                     {money(data.balance.outstanding)}
                   </dd>
                 </div>
               )}
               {[
-                ['Pembayaran pelanggan', money(draft.grossAmount)],
-                ['Biaya administrasi', values ? money(values.fee) : 'Pilih mapping'],
                 [
-                  'Tarif bank',
-                  values ? `${new Intl.NumberFormat('id-ID').format(rateBps / 100)}%` : '—',
+                  amountMode === 'FULL' ? 'Pembayaran pelanggan' : 'Pelunasan piutang tahap ini',
+                  money(values?.gross ?? draft.grossAmount),
                 ],
+                ['Biaya administrasi', values ? money(values.fee) : 'Pilih mapping'],
               ].map(([label, value]) => (
                 <div
                   key={label}
@@ -548,11 +759,52 @@ function Form({
                   </dd>
                 </div>
               ))}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <dt className="text-sm text-muted-foreground">Tarif bank</dt>
+                <dd className="m-0 ml-auto flex items-center gap-1.5 font-medium tabular-nums">
+                  <span>{mapping || draft.mappingId ? `${formatReceiptRate(rateBps)}%` : '—'}</span>
+                  {editable && mapping && !unsupported && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={busy}
+                      aria-label="Ubah tarif bank untuk penerimaan ini"
+                      ref={rateTrigger}
+                      onClick={() => {
+                        setRateInput(formatReceiptRate(rateBps));
+                        setRateOpen(true);
+                      }}
+                    >
+                      <Pencil className="text-primary" />
+                    </Button>
+                  )}
+                </dd>
+              </div>
+              {data.settlement &&
+                (amountMode !== 'FULL' ||
+                  data.settlement.settled > 0 ||
+                  data.settlement.payments.length > 1) && (
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <dt className="text-sm text-muted-foreground">
+                      Sisa pembayaran ini setelah tahap ini
+                    </dt>
+                    <dd className="m-0 font-medium tabular-nums">
+                      {values
+                        ? money(
+                            draft.status === 'SUCCEEDED'
+                              ? data.settlement.remaining
+                              : Math.max(0, data.settlement.available - values.gross),
+                          )
+                        : 'Isi nominal'}
+                    </dd>
+                  </div>
+                )}
             </dl>
             {data.balance && (
               <p className="m-0 text-xs text-muted-foreground">
-                Saldo diperiksa {dateTime(data.balance.checkedAt)} WIB. Saldo akan diperiksa ulang
-                saat pengiriman.
+                {simulation ? 'Saldo simulasi diperiksa' : 'Saldo diperiksa'}{' '}
+                {dateTime(data.balance.checkedAt)} WIB. Saldo akan diperiksa ulang saat pengiriman.
               </p>
             )}
             <Separator />
@@ -586,7 +838,9 @@ function Form({
                     id="receipt-reviewed"
                     className="mt-0.5 shrink-0"
                     checked={reviewed}
-                    disabled={busy || dirty || !draft.mappingId || !number || unsupported}
+                    disabled={
+                      busy || dirty || !draft.mappingId || !number || unsupported || !!amountError
+                    }
                     onCheckedChange={(value) => setReviewed(value === true)}
                   />
                   <FieldLabel
@@ -605,12 +859,13 @@ function Form({
                     !draft.mappingId ||
                     !number ||
                     unsupported ||
+                    !!amountError ||
                     !data.delivery.enabled
                   }
                   onClick={() => setConfirm(true)}
                 >
                   <Send data-icon="inline-start" />
-                  Kirim ke Accurate
+                  {simulation ? 'Jalankan simulasi' : 'Kirim ke Accurate'}
                 </Button>
                 {!data.delivery.enabled && (data.balance || unsupported) && (
                   <Alert variant="info">
@@ -655,25 +910,119 @@ function Form({
               <Alert variant="success">
                 <AlertDescription>
                   <div>
-                    <p>Penerimaan terverifikasi di Accurate.</p>
+                    <p>
+                      {simulation
+                        ? 'Simulasi penerimaan selesai. Tidak dikirim ke Accurate.'
+                        : 'Penerimaan terverifikasi di Accurate.'}
+                    </p>
                     <p className="mt-2 break-all font-medium">
-                      {draft.targetNumber} · ID {draft.targetId}
+                      {draft.targetNumber}
+                      {!simulation && <> · ID {draft.targetId}</>}
                     </p>
                   </div>
                 </AlertDescription>
               </Alert>
             )}
+            {partiallySettled && data.settlement && (
+              <Alert variant="warning">
+                <AlertDescription>
+                  Sisa penerimaan faktur {money(data.settlement.invoiceRemaining)} masih menjadi
+                  piutang. Catat penerimaan berikutnya setelah dana masuk.
+                </AlertDescription>
+              </Alert>
+            )}
+            {data.actions.canContinue && source.key && (
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  if (source.key) void openPayment(source.key);
+                }}
+              >
+                Catat penerimaan berikutnya
+              </Button>
+            )}
           </CardFooter>
         </Card>
       </div>
+      <Dialog open={rateOpen} onOpenChange={setRateOpen}>
+        <DialogContent
+          className="sm:max-w-md"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            rateTrigger.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Ubah tarif bank</DialogTitle>
+            <DialogDescription>
+              Hanya berlaku pada penerimaan yang sedang direview.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!editable || enteredRateBps === null) return;
+              setRateOverrideBps(enteredRateBps);
+              setReviewed(false);
+              setRateOpen(false);
+            }}
+          >
+            <FieldGroup>
+              <Field data-invalid={enteredRateBps === null}>
+                <FieldLabel htmlFor="receipt-specific-rate">Tarif bank</FieldLabel>
+                <InputGroup>
+                  <InputGroupInput
+                    id="receipt-specific-rate"
+                    inputMode="decimal"
+                    value={rateInput}
+                    aria-invalid={enteredRateBps === null}
+                    aria-describedby="receipt-specific-rate-help"
+                    onChange={(event) => setRateInput(event.target.value)}
+                  />
+                  <InputGroupAddon align="inline-end">%</InputGroupAddon>
+                </InputGroup>
+                <FieldDescription id="receipt-specific-rate-help">
+                  {enteredRateBps === null
+                    ? 'Isi tarif 0-99,99%, maksimal dua angka desimal.'
+                    : null}
+                </FieldDescription>
+              </Field>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setRateOverrideBps(null);
+                    setReviewed(false);
+                    setRateOpen(false);
+                  }}
+                >
+                  Gunakan tarif Settings
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setRateOpen(false)}>
+                  Batal
+                </Button>
+                <Button type="submit" disabled={enteredRateBps === null}>
+                  Terapkan
+                </Button>
+              </DialogFooter>
+            </FieldGroup>
+          </form>
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Kirim penerimaan ke Accurate?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {simulation ? 'Jalankan simulasi penerimaan?' : 'Kirim penerimaan ke Accurate?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Faktur {invoice.number} akan menerima alokasi pembayaran {money(draft.grossAmount)}.
               Biaya administrasi {money(draft.feeAmount)} dan nilai bersih kas/bank{' '}
-              {money(draft.netAmount)}. Pastikan data sudah benar sebelum melanjutkan.
+              {money(draft.netAmount)}.{' '}
+              {simulation
+                ? 'Hasil hanya disimpan di intgrte, tanpa pengiriman ke Accurate.'
+                : 'Pastikan data sudah benar sebelum melanjutkan.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -688,7 +1037,7 @@ function Form({
                 });
               }}
             >
-              {busy ? 'Memproses…' : 'Ya, kirim penerimaan'}
+              {busy ? 'Memproses…' : simulation ? 'Ya, jalankan simulasi' : 'Ya, kirim penerimaan'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -746,12 +1095,18 @@ export function ReceiptReview({
   onConfigure,
   canConfigureAccounts = false,
   onInvoice,
+  onReceipt,
+  focusPayment = false,
+  onPaymentFocused,
 }: {
   id: string;
   onBack: () => void;
   onConfigure?: () => void;
   canConfigureAccounts?: boolean;
   onInvoice?: (id: string) => void;
+  onReceipt: (id: string, focusPayment?: boolean) => void;
+  focusPayment?: boolean;
+  onPaymentFocused?: () => void;
 }) {
   const fetcher = useCallback((signal: AbortSignal) => getReceipt(id, signal), [id]);
   const { data, error, load, read } = usePolledResource({
@@ -760,6 +1115,19 @@ export function ReceiptReview({
     delay: 0,
     fallback: 'Penerimaan gagal dimuat.',
   });
+  useEffect(() => {
+    if (!focusPayment || !data) return;
+    const details = document.getElementById('receipt-payment-details');
+    const content = details?.closest<HTMLElement>('main.workspace-content');
+    if (details && content) {
+      content.scrollTop +=
+        details.getBoundingClientRect().top -
+        content.getBoundingClientRect().top -
+        parseFloat(getComputedStyle(content).paddingTop);
+    }
+    document.getElementById('receipt-payment-choice')?.focus({ preventScroll: true });
+    onPaymentFocused?.();
+  }, [focusPayment, data, onPaymentFocused]);
   return (
     <div className="flex flex-col gap-4">
       {error && (
@@ -790,6 +1158,7 @@ export function ReceiptReview({
           onConfigure={onConfigure}
           canConfigureAccounts={canConfigureAccounts}
           onInvoice={onInvoice}
+          onReceipt={onReceipt}
         />
       ) : (
         !error && <Skeleton className="h-96" />

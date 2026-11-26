@@ -1,12 +1,8 @@
 export type ReceiptBank = 'BCA' | 'BNI';
 export type ReceiptMethod = 'CREDIT_CARD' | 'DEBIT_CARD' | 'QRIS' | 'BANK_TRANSFER';
+export type ReceiptAmountMode = 'FULL' | 'NET' | 'GROSS';
 export type ReceiptStatus =
-  | 'TO_REVIEW'
-  | 'DRAFT'
-  | 'QUEUED'
-  | 'SENDING'
-  | 'SUCCEEDED'
-  | 'NEEDS_REVIEW';
+  'TO_REVIEW' | 'DRAFT' | 'QUEUED' | 'SENDING' | 'SUCCEEDED' | 'PARTIAL' | 'NEEDS_REVIEW';
 export type ReceiptStatusFilter = ReceiptStatus | 'PROCESSING';
 export type ReceiptAccount = { id: string; code: string; name: string; type: string };
 export type ReceiptMapping = {
@@ -21,6 +17,7 @@ export type ReceiptMapping = {
   feeAccountId: string | null;
   feeAccountNo: string | null;
   feeAccountName: string | null;
+  rateBps?: number | null;
   version: number;
 };
 export type ReceiptConfiguration = {
@@ -33,6 +30,7 @@ export type ReceiptConfiguration = {
   destinations: { branchId: string; databaseId: string; targetBranchId: string }[];
 };
 export type ReceiptDraft = {
+  mode?: 'simulation' | 'live';
   id: string;
   invoiceId: string;
   branchId: string;
@@ -44,7 +42,11 @@ export type ReceiptDraft = {
   method: ReceiptMethod | null;
   sourceMethod: string;
   grossAmount: number;
+  amountMode?: ReceiptAmountMode;
+  inputAmount?: number | null;
+  receiptSequence?: number;
   rateBps: number;
+  rateOverrideBps?: number | null;
   feeAmount: number;
   netAmount: number;
   paymentDate: string;
@@ -63,6 +65,14 @@ export type ReceiptDraft = {
   attemptedAt: string | null;
 };
 export type ReceiptRow = {
+  mode?: 'simulation' | 'live';
+  settlement?: {
+    gross: number;
+    settled: number;
+    remaining: number;
+    paymentCount: number;
+    fee?: number;
+  };
   invoiceId: string;
   invoiceNumber: string;
   customer: string;
@@ -89,13 +99,50 @@ export type ReceiptOverview = {
     processing: number;
     succeeded: number;
     attention: number;
+    partial?: number;
   };
 };
 export type ReceiptDetail = {
+  settlement?: {
+    available: number;
+    settled: number;
+    remaining: number;
+    invoiceGross: number;
+    invoiceSettled: number;
+    invoiceRemaining: number;
+    payments: {
+      key: string;
+      method: string;
+      paidAt: string;
+      gross: number;
+      settled: number;
+      remaining: number;
+      receiptId: string | null;
+    }[];
+    history: {
+      id: string;
+      number: string;
+      gross: number;
+      fee: number;
+      net: number;
+      method: ReceiptMethod | null;
+      status: ReceiptStatus;
+      paymentDate: string;
+      error: string | null;
+    }[];
+    feeBasis: Record<ReceiptMethod, { gross: number; fee: number }>;
+    feeBasisByRate?: {
+      method: ReceiptMethod | null;
+      rateBps: number;
+      gross: number;
+      fee: number;
+    }[];
+  };
   draft: ReceiptDraft;
   receiptNumber: string | null;
   invoice: { number: string; customer: string; total: number };
   source: {
+    key?: string;
     receiptNumber: string | null;
     method: string;
     paidAt: string;
@@ -107,7 +154,7 @@ export type ReceiptDetail = {
   validation: { editable: boolean; message: string | null };
   delivery: { enabled: boolean; message: string };
   balance: { outstanding: number; checkedAt: string } | null;
-  actions: { canCheck: boolean; canReopen: boolean; canSetNumber: boolean };
+  actions: { canCheck: boolean; canReopen: boolean; canSetNumber: boolean; canContinue?: boolean };
 };
 export type ReceiptFilters = {
   search: string;
@@ -125,6 +172,7 @@ export const methodLabels: Record<ReceiptMethod, string> = {
   BANK_TRANSFER: 'Transfer rekening langsung',
 };
 export const sourceMethodLabels: Record<string, string> = {
+  mixed: 'Beberapa pembayaran',
   card: 'Kartu — pilih CC atau debit',
   qris: 'QRIS',
   bank: 'Transfer bank',
@@ -134,6 +182,7 @@ export const sourceMethodLabels: Record<string, string> = {
   other: 'Perlu diperiksa',
 };
 export const statusLabels: Record<ReceiptStatus, string> = {
+  PARTIAL: 'Diterima sebagian',
   TO_REVIEW: 'Belum direview',
   DRAFT: 'Draft',
   QUEUED: 'Dalam antrean',

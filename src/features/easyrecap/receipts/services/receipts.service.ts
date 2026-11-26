@@ -1,6 +1,7 @@
 import { api } from '@/services/api-client';
 import type {
   ReceiptAccount,
+  ReceiptAmountMode,
   ReceiptConfiguration,
   ReceiptDetail,
   ReceiptDraft,
@@ -33,7 +34,7 @@ export function saveReceiptMapping(
   input: Pick<
     ReceiptMapping,
     'branchId' | 'bank' | 'method' | 'accountId' | 'feeAccountId' | 'version'
-  >,
+  > & { rateBps?: number },
 ) {
   return api<ReceiptMapping>('/receipts/mappings', { method: 'PUT', body: JSON.stringify(input) });
 }
@@ -51,6 +52,9 @@ export function saveReceipt(
     mappingId: string;
     mappingVersion: number;
     receiptNumber?: string;
+    amountMode?: ReceiptAmountMode;
+    inputAmount?: number;
+    rateOverrideBps?: number | null;
   },
 ) {
   return api<ReceiptDraft>(`/receipts/${id}`, { method: 'PUT', body: JSON.stringify(input) });

@@ -48,6 +48,7 @@ async function mockApi(
   blocked = false,
   outcome: 'success' | 'uncertain' | 'rejected' = 'success',
   options: {
+    simulation?: boolean;
     balanceUnavailable?: boolean;
     legacyNumber?: boolean;
     sourceMethod?: 'card' | 'bank';
@@ -58,6 +59,7 @@ async function mockApi(
   const currentActor = { ...actor, role: options.role ?? actor.role };
   let balanceUnavailable = options.balanceUnavailable ?? false;
   let current: ReceiptDraft = {
+    mode: options.simulation ? 'simulation' : 'live',
     id: draftId,
     invoiceId: '00000000-0000-4000-8000-000000000004',
     branchId: branch,
@@ -240,17 +242,20 @@ async function mockApi(
       if (mappingAttempts === 1)
         return json({ error: 'Contoh penolakan: akun belum tersedia.' }, 422);
       const body = route.request().postDataJSON();
+      const previous = config.mappings.find(
+        (row) => row.bank === body.bank && row.method === body.method,
+      );
       const row = {
         ...body,
-        id: '00000000-0000-4000-8000-000000000005',
+        id: previous?.id ?? '00000000-0000-4000-8000-000000000005',
         databaseId: '99',
-        accountNo: '110102',
-        accountName: 'Bank BNI contoh',
+        accountNo: body.accountId === '102' ? '110102' : '110101',
+        accountName: body.bank === 'BNI' ? 'Bank BNI contoh' : 'Bank BCA contoh',
         feeAccountNo: '610001',
         feeAccountName: 'Beban administrasi',
-        version: 1,
+        version: (previous?.version ?? 0) + 1,
       };
-      config.mappings.push(row);
+      config.mappings = [...config.mappings.filter((value) => value.id !== row.id), row];
       return json(row);
     }
     if (path === '/receipts/drafts' && method === 'POST') {
@@ -316,21 +321,25 @@ async function mockApi(
       if (body.receiptNumber === 'DUPLICATE-RECEIPT')
         return json({ error: 'No. Bukti sudah dipakai oleh penerimaan lain.' }, 409);
       saved++;
-      expect(body.mappingVersion).toBe(1);
+      const mapping = config.mappings.find((row) => row.id === body.mappingId);
+      if (!mapping) throw new Error('Missing receipt mapping');
+      expect(body.mappingVersion).toBe(mapping.version);
+      const rateBps = body.rateOverrideBps ?? mapping.rateBps ?? config.rates[mapping.method];
+      const fee = Number((BigInt(200001) * BigInt(rateBps) + 9999n) / 10000n);
       current = {
         ...current,
         ...body,
         number: options.missingReceipt ? (body.receiptNumber ?? current.number) : 'RECEIPT-EXAMPLE',
         version: current.version + 1,
-        bank: 'BCA',
-        method: 'QRIS',
+        bank: mapping.bank,
+        method: mapping.method,
         bankAccountNo: '110101',
         bankAccountName: 'Bank BCA contoh',
         feeAccountNo: '610001',
         feeAccountName: 'Beban administrasi',
-        rateBps: 70,
-        feeAmount: 1401,
-        netAmount: 198600,
+        rateBps,
+        feeAmount: fee,
+        netAmount: 200001 - fee,
       };
       return json(current);
     }
@@ -374,6 +383,7 @@ async function mockApi(
             branchId: branch,
             branchName: 'Perusahaan Uji',
             sourceKey: 'a'.repeat(64),
+            mode: current.mode,
             sourceMethod: current.sourceMethod,
             paidAt: '2026-11-01T00:00:00+07:00',
             gross: 200001,
@@ -399,6 +409,8 @@ async function mockApi(
     return json({}, 404);
   });
   return {
+    draft: () => current,
+    configuration: () => config,
     state: () => ({
       saved,
       remoteSubmits,
@@ -507,6 +519,122 @@ for (const mobile of [false, true])
     await expect(page.getByLabel('Cari penerimaan')).toHaveValue('Customer');
     expect(errors).toEqual([]);
   });
+
+for (const mobile of [false, true]) {
+  test(`Finance can change and reset a receipt rate without changing Settings (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const fixture = await mockApi(page, false, 'success', {
+      sourceMethod: 'card',
+      role: 'finance',
+      simulation: true,
+    });
+    await page.setViewportSize({ width: mobile ? 390 : 1500, height: mobile ? 900 : 1000 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/easyrecap/penerimaan-penjualan');
+    await page.getByRole('button', { name: 'Review', exact: true }).click();
+    await selectOption(
+      page.getByLabel('Bank dan metode pembayaran', { exact: true }),
+      'BCA-CREDIT_CARD',
+    );
+    await page.getByLabel('Referensi pembayaran', { exact: true }).fill('RATE-REF');
+    const summary = page.getByRole('region', { name: 'Ringkasan penerimaan', exact: true });
+    await expect(summary.getByText('2%', { exact: true })).toBeVisible();
+    const pencil = page.getByRole('button', { name: 'Ubah tarif bank untuk penerimaan ini' });
+    await pencil.click();
+    const dialog = page.getByRole('dialog', { name: 'Ubah tarif bank', exact: true });
+    const input = dialog.getByLabel('Tarif bank', { exact: true });
+    await expect(input).toBeFocused();
+    await input.fill('100');
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(dialog.getByRole('button', { name: 'Terapkan', exact: true })).toBeDisabled();
+    await input.fill('1,8');
+    await page.screenshot({
+      path: `tmp/receipt-rate-editor-${mobile ? 'mobile' : 'desktop'}.png`,
+      fullPage: true,
+    });
+    await dialog.getByRole('button', { name: 'Terapkan', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(pencil).toBeFocused();
+    await expect(summary.getByText('1,8%', { exact: true })).toBeVisible();
+    await expect(summary.getByText(/Rp\s*196\.400/)).toBeVisible();
+    expect(fixture.state().saved).toBe(0);
+    expect(fixture.state().mappingAttempts).toBe(0);
+    await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
+    await expect.poll(() => fixture.draft().rateOverrideBps).toBe(180);
+    expect(fixture.draft().rateBps).toBe(180);
+    expect(fixture.configuration().rates.CREDIT_CARD).toBe(200);
+    expect(
+      fixture.configuration().mappings.find((row) => row.id === 'BCA-CREDIT_CARD')?.rateBps,
+    ).toBeUndefined();
+    await pencil.click();
+    await dialog.getByRole('button', { name: 'Gunakan tarif Settings', exact: true }).click();
+    await expect(summary.getByText('2%', { exact: true })).toBeVisible();
+    await expect(summary.getByText(/Rp\s*196\.000/)).toBeVisible();
+    await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
+    await expect.poll(() => fixture.draft().rateOverrideBps).toBeNull();
+    await pencil.click();
+    await input.fill('1.85');
+    await dialog.getByRole('button', { name: 'Terapkan', exact: true }).click();
+    await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
+    await expect.poll(() => fixture.draft().rateBps).toBe(185);
+    await page.getByLabel(/Saya telah memeriksa sumber/).check();
+    await page.getByRole('button', { name: 'Jalankan simulasi', exact: true }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Ya, jalankan simulasi', exact: true })
+      .click();
+    await page.clock.runFor(16000);
+    await expect(
+      page.getByText('Simulasi penerimaan selesai. Tidak dikirim ke Accurate.', { exact: true }),
+    ).toBeVisible();
+    await expect(pencil).toHaveCount(0);
+    expect(fixture.draft().feeAmount).toBe(3701);
+    expect(fixture.state().mappingAttempts).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `tmp/receipt-rate-${mobile ? 'mobile' : 'desktop'}.png`,
+      fullPage: true,
+    });
+  });
+
+  test(`Settings can save a default bank rate for a specific mapping (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    const fixture = await mockApi(page);
+    await page.setViewportSize({ width: mobile ? 390 : 1500, height: mobile ? 900 : 1000 });
+    await page.goto('/easyrecap/settings');
+    await page.getByRole('tab', { name: 'Akun penerimaan', exact: true }).click();
+    await selectOption(page.getByLabel('Metode pembayaran', { exact: true }), 'QRIS');
+    const input = page.getByLabel('Tarif bank default', { exact: true });
+    await expect(input).toHaveValue('0,7');
+    await input.fill('-1');
+    await expect(
+      page.getByRole('button', { name: 'Simpan mapping akun', exact: true }),
+    ).toBeDisabled();
+    await input.fill('1,85');
+    await page.getByRole('button', { name: 'Simpan mapping akun', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Contoh penolakan' })).toBeVisible();
+    await expect(input).toHaveValue('1,85');
+    await page.getByRole('button', { name: 'Simpan mapping akun', exact: true }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Mapping akun berhasil disimpan.' }),
+    ).toBeVisible();
+    expect(fixture.configuration().mappings.find((row) => row.id === mappingId)?.rateBps).toBe(185);
+    expect(fixture.configuration().mappings.find((row) => row.id === mappingId)?.version).toBe(2);
+    expect(fixture.state().remoteSubmits).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `tmp/receipt-rate-settings-${mobile ? 'mobile' : 'desktop'}.png`,
+      fullPage: true,
+    });
+  });
+}
 
 for (const outcome of ['success', 'uncertain', 'rejected'] as const)
   test(`receipt submission confirms exact amounts and handles ${outcome} without duplicate submits`, async ({
@@ -978,3 +1106,45 @@ for (const mobile of [false, true])
       true,
     );
   });
+
+for (const mobile of [false, true])
+  test(
+    'simulation receipt review stays local and clearly labels its completion ' +
+      (mobile ? 'mobile' : 'desktop'),
+    async ({ page }) => {
+      await page.clock.install();
+      const fixture = await mockApi(page, false, 'success', { simulation: true });
+      await page.setViewportSize({ width: mobile ? 390 : 1500, height: mobile ? 844 : 1000 });
+      await page.goto('/easyrecap/penerimaan-penjualan');
+      await expect(page.getByRole('table')).toContainText('Simulasi');
+      await page.getByRole('button', { name: 'Review', exact: true }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Mode simulasi.' })).toBeVisible();
+      await expect(page.getByText('Sisa tagihan simulasi', { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Kirim ke Accurate', exact: true }),
+      ).toHaveCount(0);
+      await selectOption(page.getByLabel('Bank dan metode pembayaran', { exact: true }), mappingId);
+      await page.getByLabel('Referensi pembayaran', { exact: true }).fill('SIMULATION-REFERENCE');
+      await page.getByRole('button', { name: 'Simpan draft', exact: true }).click();
+      await expect(page.getByText('Draft tersimpan di intgrte.', { exact: true })).toBeVisible();
+      await page.getByLabel(/Saya telah memeriksa sumber/).check();
+      await page.getByRole('button', { name: 'Jalankan simulasi', exact: true }).click();
+      const confirm = page.getByRole('alertdialog', { name: 'Jalankan simulasi penerimaan?' });
+      await expect(confirm).toContainText('Rp 198.600');
+      await expect(confirm).toContainText('tanpa pengiriman ke Accurate');
+      await confirm.getByRole('button', { name: 'Ya, jalankan simulasi', exact: true }).click();
+      await page.clock.runFor(15100);
+      await expect(
+        page.getByText('Simulasi penerimaan selesai. Tidak dikirim ke Accurate.', { exact: true }),
+      ).toBeVisible({ timeout: 12000 });
+      await expect(
+        page.getByText('Penerimaan terverifikasi di Accurate.', { exact: true }),
+      ).toHaveCount(0);
+      expect(fixture.state().remoteSubmits).toBe(1);
+      await page.getByRole('button', { name: 'Kembali ke riwayat', exact: true }).click();
+      await expect(page.getByRole('table')).toContainText('Simulasi selesai');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    },
+  );

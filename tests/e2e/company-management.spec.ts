@@ -7,8 +7,9 @@ async function fixture(page: Page) {
   ];
   const saved: { branchId: string | null; body: unknown }[] = [];
   const deleted: string[] = [];
+  const renamed: { id: string; name: string }[] = [];
   const errors: string[] = [];
-  const state = { rejectDelete: false };
+  const state = { rejectDelete: false, rejectRename: false };
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
@@ -124,6 +125,22 @@ async function fixture(page: Page) {
           enabled: row.enabled,
         },
       }));
+    if (path.startsWith('/companies/') && method === 'PATCH') {
+      const id = path.split('/').at(-1)!;
+      const target = companies.find((row) => row.id === id);
+      const input = route.request().postDataJSON();
+      expect(Object.keys(input).sort()).toEqual(['expectedName', 'name']);
+      expect(input.expectedName).toBe(target?.name);
+      if (state.rejectRename)
+        return route.fulfill({
+          status: 409,
+          json: { error: 'Nama perusahaan sudah digunakan. Gunakan nama lain.' },
+        });
+      expect(target).toBeDefined();
+      target!.name = String(input.name).trim().replace(/\s+/g, ' ');
+      renamed.push({ id, name: target!.name });
+      return route.fulfill({ json: { id, name: target!.name } });
+    }
     if (path.startsWith('/companies/') && method === 'DELETE') {
       if (state.rejectDelete)
         return route.fulfill({
@@ -142,7 +159,95 @@ async function fixture(page: Page) {
     }
     await route.fulfill({ json: body });
   });
-  return { companies, saved, deleted, errors, state };
+  return { companies, saved, deleted, renamed, errors, state };
+}
+
+for (const mobile of [false, true]) {
+  test(`company names can be edited without changing connections and unused inactive connections can be deleted (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    const f = await fixture(page);
+    await page.setViewportSize({ width: mobile ? 390 : 1440, height: 950 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/easyrecap/settings');
+    await page.getByRole('tab', { name: 'Perusahaan', exact: true }).click();
+    await page.getByRole('button', { name: 'Tambah perusahaan', exact: true }).click();
+    const adding = page.getByRole('dialog', { name: 'Tambah perusahaan', exact: true });
+    await adding.getByLabel('Nama perusahaan', { exact: true }).fill('PT Coba Coba');
+    await adding.getByRole('button', { name: 'Tambah perusahaan', exact: true }).click();
+    await expect(adding).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: 'Hapus perusahaan PT Coba Coba', exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole('button', { name: 'Edit nama perusahaan PT Coba Coba', exact: true })
+      .click();
+    const editing = page.getByRole('dialog', { name: 'Edit nama perusahaan', exact: true });
+    await expect(editing.getByLabel('Nama perusahaan', { exact: true })).toHaveValue(
+      'PT Coba Coba',
+    );
+    const save = editing.getByRole('button', { name: 'Simpan perubahan', exact: true });
+    await expect(save).toBeDisabled();
+    await editing.getByLabel('Nama perusahaan', { exact: true }).fill('  PT Coba  Diperbarui  ');
+    f.state.rejectRename = true;
+    await save.click();
+    await expect(editing.getByRole('alert')).toContainText('Nama perusahaan sudah digunakan.');
+    await expect(editing.getByLabel('Nama perusahaan', { exact: true })).toHaveValue(
+      '  PT Coba  Diperbarui  ',
+    );
+    expect(f.renamed).toEqual([]);
+    f.state.rejectRename = false;
+    await page.screenshot({
+      path: `tmp/company-rename-${mobile ? 'mobile' : 'desktop'}.png`,
+      fullPage: true,
+    });
+    await save.click();
+    await expect(editing).toBeHidden();
+    await expect(page.getByText('PT Coba Diperbarui', { exact: true })).toBeVisible();
+    expect(f.companies.find((row) => row.id === 'company-new')).toMatchObject({
+      configured: false,
+      enabled: false,
+    });
+    expect(f.saved).toEqual([]);
+    await page.getByRole('button', { name: 'Edit nama perusahaan PT. MMI', exact: true }).click();
+    await editing.getByLabel('Nama perusahaan', { exact: true }).fill('PT MMI Diperbarui');
+    await save.click();
+    await expect(editing).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: 'Hapus perusahaan PT MMI Diperbarui', exact: true }),
+    ).toBeDisabled();
+    expect(f.companies.find((row) => row.id === 'legacy')).toMatchObject({
+      configured: true,
+      enabled: true,
+      protected: true,
+    });
+    await page
+      .getByRole('button', { name: 'Hapus perusahaan PT Coba Diperbarui', exact: true })
+      .click();
+    const confirmation = page.getByRole('alertdialog');
+    await confirmation.getByLabel('Ketik nama perusahaan', { exact: true }).fill('PT Coba Coba');
+    await expect(
+      confirmation.getByRole('button', { name: 'Hapus perusahaan', exact: true }),
+    ).toBeDisabled();
+    await confirmation
+      .getByLabel('Ketik nama perusahaan', { exact: true })
+      .fill('PT Coba Diperbarui');
+    await confirmation.getByRole('button', { name: 'Hapus perusahaan', exact: true }).click();
+    await expect(confirmation).toBeHidden();
+    expect(f.deleted).toEqual(['company-new']);
+    expect(f.renamed).toEqual([
+      { id: 'company-new', name: 'PT Coba Diperbarui' },
+      { id: 'legacy', name: 'PT MMI Diperbarui' },
+    ]);
+    await page.getByRole('button', { name: 'Atur koneksi PT MMI Diperbarui', exact: true }).click();
+    await expect(page.getByLabel('Perusahaan yang diatur', { exact: true })).toContainText(
+      'PT MMI Diperbarui',
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(f.errors).toEqual([]);
+  });
 }
 
 for (const mobile of [false, true]) {

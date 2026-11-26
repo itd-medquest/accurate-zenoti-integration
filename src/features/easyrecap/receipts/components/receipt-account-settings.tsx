@@ -11,6 +11,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatReceiptRate, parseReceiptRate } from '../lib/rates';
 import type { Branch } from '@/types';
 import {
   getReceiptConfiguration,
@@ -211,12 +212,14 @@ function MappingForm({
   branchId,
   bank,
   method,
+  defaultRateBps,
   onSaved,
 }: {
   previous?: ReceiptMapping;
   branchId: string;
   bank: ReceiptBank;
   method: ReceiptMethod;
+  defaultRateBps: number;
   onSaved: (mapping: ReceiptMapping) => void;
 }) {
   const [account, setAccount] = useState<ReceiptAccount | null>(
@@ -242,11 +245,14 @@ function MappingForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [rate, setRate] = useState(formatReceiptRate(previous?.rateBps ?? defaultRateBps));
+  const rateBps = parseReceiptRate(rate);
+  const needsFee = method !== 'BANK_TRANSFER' || (rateBps ?? 0) > 0;
   return (
     <form
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!account || busy) return;
+        if (!account || busy || rateBps === null) return;
         setBusy(true);
         setError('');
         setNotice('');
@@ -256,7 +262,8 @@ function MappingForm({
             bank,
             method,
             accountId: account.id,
-            feeAccountId: method === 'BANK_TRANSFER' ? null : (fee?.id ?? null),
+            feeAccountId: needsFee ? (fee?.id ?? null) : null,
+            rateBps,
             version: previous?.version ?? 0,
           });
           onSaved(saved);
@@ -269,6 +276,26 @@ function MappingForm({
       }}
     >
       <FieldGroup className="gap-5">
+        <Field data-invalid={rateBps === null} className="max-w-sm">
+          <FieldLabel htmlFor="receipt-default-rate">Tarif bank default</FieldLabel>
+          <InputGroup>
+            <InputGroupInput
+              id="receipt-default-rate"
+              inputMode="decimal"
+              value={rate}
+              disabled={busy}
+              aria-invalid={rateBps === null}
+              aria-describedby="receipt-default-rate-help"
+              onChange={(event) => setRate(event.target.value)}
+            />
+            <InputGroupAddon align="inline-end">%</InputGroupAddon>
+          </InputGroup>
+          <FieldDescription id="receipt-default-rate-help">
+            {rateBps === null
+              ? 'Isi tarif 0 - 99,99%, maksimal dua angka desimal.'
+              : null}
+          </FieldDescription>
+        </Field>
         <FieldGroup className="grid items-start gap-4 lg:grid-cols-2">
           <AccountPicker
             branchId={branchId}
@@ -278,7 +305,7 @@ function MappingForm({
             persistedId={previous?.accountId}
             onChange={setAccount}
           />
-          {method !== 'BANK_TRANSFER' && (
+          {needsFee && (
             <AccountPicker
               branchId={branchId}
               kind="fee"
@@ -305,7 +332,7 @@ function MappingForm({
           <p className="text-xs text-muted-foreground">
             Perubahan diterapkan setelah mapping disimpan.
           </p>
-          <Button disabled={busy || !account || (method !== 'BANK_TRANSFER' && !fee)}>
+          <Button disabled={busy || !account || rateBps === null || (needsFee && !fee)}>
             <Save data-icon="inline-start" />
             {busy ? 'Menyimpan…' : 'Simpan mapping akun'}
           </Button>
@@ -413,11 +440,8 @@ export function ReceiptAccountSettings({ branches }: { branches: Branch[] }) {
               <AlertDescription>
                 <p>
                   Biaya {bank}:{' '}
-                  <strong>
-                    {new Intl.NumberFormat('id-ID').format(config.rates[method] / 100)}%
-                  </strong>
-                  . Pecahan rupiah selalu dibulatkan ke atas. Transfer rekening langsung tanpa
-                  biaya.
+                  <strong>{formatReceiptRate(previous?.rateBps ?? config.rates[method])}%</strong>.
+                  Pecahan rupiah selalu dibulatkan ke atas.
                 </p>
               </AlertDescription>
             </Alert>
@@ -435,6 +459,7 @@ export function ReceiptAccountSettings({ branches }: { branches: Branch[] }) {
                 branchId={branch}
                 bank={bank}
                 method={method}
+                defaultRateBps={config.rates[method]}
                 previous={previous}
                 onSaved={(saved) =>
                   setConfig(
