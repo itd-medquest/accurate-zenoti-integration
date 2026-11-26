@@ -1,8 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Batch } from '../../src/features/imports/types';
-import type { addItem } from '../../src/features/imports/services/imports.service';
+import type {
+  Batch,
+  ImportHistoryEntry,
+  ImportSummary,
+} from '../../src/features/easyrecap/imports/types';
+import type { addItem } from '../../src/features/easyrecap/imports/services/imports.service';
 import { receiptPdf } from '../fixtures/receipt-fixture';
 import { selectOption } from '../helpers/select-option';
+import { twoPagePdf } from '../fixtures/two-page-pdf';
 
 const packageDescription = 'Custom Package–Elma–202610131152726–Redeemed';
 const longMasterName =
@@ -228,7 +233,7 @@ async function fixture(
     }
     return json([]);
   });
-  return { errors, requests, saves, state, additions };
+  return { errors, requests, saves, state, additions, batch };
 }
 
 async function openReview(page: Page, mobile = false, dark = false) {
@@ -236,7 +241,7 @@ async function openReview(page: Page, mobile = false, dark = false) {
   await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
   if (dark) await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
   if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Buka batch review-b' }).click();
   await page.getByRole('button', { name: 'Periksa INV-UI-001', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -314,7 +319,7 @@ for (const mobile of [false, true])
     await form
       .getByRole('textbox', { name: 'Nama item baru', exact: true })
       .fill('Layanan tambahan');
-    await form.getByRole('spinbutton', { name: 'Harga unit item baru', exact: true }).fill('10000');
+    await form.getByRole('textbox', { name: 'Harga unit item baru', exact: true }).fill('10000');
     await form
       .getByRole('textbox', { name: 'Alasan penambahan item', exact: true })
       .fill('Layanan terlewat saat pembacaan dokumen');
@@ -440,6 +445,8 @@ test('review divider supports dragging and keyboard, fits PDF and preserves edit
   const pdf = dialog.getByRole('img', { name: 'PDF sumber halaman 1' });
   await expect(pdf).toHaveAttribute('data-rendered', 'true');
   const initial = (await fields.boundingBox())!.width;
+  const initialSource = (await source.boundingBox())!.width;
+  expect(initial / (initial + initialSource)).toBeCloseTo(0.66, 2);
   const initialPdf = (await pdf.boundingBox())!.width;
   const initialRequests = f.requests.length;
   const handle = (await separator.boundingBox())!;
@@ -533,13 +540,18 @@ for (const mobile of [false, true])
       page.getByRole('dialog', { name: 'Keterangan Layanan Redeemed', exact: true }),
     ).toContainText(packageDescription);
     await page.keyboard.press('Escape');
-    const mappingEdit = review.getByRole('button', { name: 'Ubah mapping Layanan Uji', exact: true });
+    const mappingEdit = review.getByRole('button', {
+      name: 'Ubah mapping Layanan Uji',
+      exact: true,
+    });
     const itemEdit = review.getByRole('button', { name: 'Edit item Layanan Uji', exact: true });
     expect(await mappingEdit.evaluate((element) => getComputedStyle(element).color)).toBe(
       await itemEdit.evaluate((element) => getComputedStyle(element).color),
     );
     await pill.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `tmp/invoice-mapping-pills-${mobile ? 'mobile' : 'desktop'}.png` });
+    await page.screenshot({
+      path: `tmp/invoice-mapping-pills-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
     await review.getByRole('button', { name: 'Hapus item Layanan Uji', exact: true }).click();
     const confirmation = page.getByRole('alertdialog', { name: 'Hapus item?', exact: true });
     await expect(confirmation).toBeVisible();
@@ -548,18 +560,579 @@ for (const mobile of [false, true])
     // Measure both actions in the same frame while the dialog entrance animation runs.
     const [cancelBox, confirmBox] = await confirmation
       .locator('.modal-footer button')
-      .evaluateAll((buttons) => buttons.map((button) => {
-        const { width, y } = button.getBoundingClientRect();
-        return { width, y };
-      }));
+      .evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const { width, y } = button.getBoundingClientRect();
+          return { width, y };
+        }),
+      );
     expect(Math.abs(cancelBox.width - confirmBox.width)).toBeLessThan(1);
     expect(cancelBox.width).toBeGreaterThan(mobile ? 120 : 140);
     expect(Math.abs(cancelBox.y - confirmBox.y)).toBeLessThan(1);
     await expect(confirm).toBeEnabled();
-    await page.screenshot({ path: `tmp/invoice-delete-actions-${mobile ? 'mobile' : 'desktop'}.png` });
+    await page.screenshot({
+      path: `tmp/invoice-delete-actions-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
     await cancel.click();
     await expect(review).toBeVisible();
-    await expect(review.getByRole('button', { name: 'Edit item Layanan Uji', exact: true })).toBeVisible();
+    await expect(
+      review.getByRole('button', { name: 'Edit item Layanan Uji', exact: true }),
+    ).toBeVisible();
     expect(f.requests.some((request) => /^(PATCH|PUT|POST|DELETE) /.test(request))).toBe(false);
     expect(f.errors).toEqual([]);
   });
+
+for (const mobile of [false, true])
+  test(`invoice summary cards filter history and reset pagination (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, false);
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: mobile ? 844 : 1000 });
+    const keys = ['sent', 'draft', 'failed', 'redeem', 'processing'] as const;
+    const labels = [
+      'Berhasil dikirim',
+      'Draft',
+      'Gagal / perlu diperiksa',
+      'Full redeem',
+      'Sedang dikirim',
+    ];
+    const summary: ImportSummary = { sent: 1, draft: 25, failed: 1, redeem: 1, processing: 1 };
+    const entries: ImportHistoryEntry[] = keys.flatMap((key) =>
+      Array.from({ length: summary[key] }, (_, index) => ({
+        id: `history-${key}-${index}`,
+        branchId: f.batch.branchId,
+        version: 1,
+        status: key === 'draft' ? 'PREVIEW' : 'SUBMITTED',
+        createdAt: f.batch.createdAt,
+        invoiceCount: 1,
+        references: [`TEST-${key.toUpperCase()}-${index}`],
+        counts: {
+          sent: 0,
+          draft: 0,
+          failed: 0,
+          redeem: 0,
+          processing: 0,
+          simulation: 0,
+          local: 0,
+          [key]: 1,
+        },
+      })),
+    );
+    const queries: URLSearchParams[] = [];
+    await page.route('**/api/imports/overview?**', async (route) => {
+      const query = new URL(route.request().url()).searchParams;
+      queries.push(query);
+      const filtered = entries.filter(
+        (entry) =>
+          !query.get('status') ||
+          entry.counts[keys.find((key) => key === query.get('status'))!] > 0,
+      );
+      const start = (Number(query.get('page')) - 1) * 10;
+      await route.fulfill({
+        json: { items: filtered.slice(start, start + 10), total: filtered.length, summary },
+      });
+    });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
+    if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
+    await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Cari riwayat', exact: true }).fill('TEST');
+    await selectOption(
+      page.getByRole('combobox', { name: 'Perusahaan', exact: true }),
+      f.batch.branchId,
+    );
+    const cards = page.getByLabel('Ringkasan status invoice', { exact: true });
+    const status = page.getByRole('combobox', { name: 'Status invoice', exact: true });
+    const pagination = page.getByRole('navigation', { name: 'Halaman riwayat', exact: true });
+    await cards.getByRole('button', { name: 'Filter Draft', exact: true }).click();
+    await expect(status).toContainText('Draft');
+    await expect(
+      pagination.getByRole('button', { name: 'Halaman riwayat: berikutnya', exact: true }),
+    ).toBeEnabled();
+    await pagination
+      .getByRole('button', { name: 'Halaman riwayat: berikutnya', exact: true })
+      .click();
+    await expect.poll(() => queries.at(-1)?.get('page')).toBe('2');
+    for (const [index, key] of keys.entries()) {
+      const card = cards.getByRole('button', { name: `Filter ${labels[index]}`, exact: true });
+      if (!index) {
+        await card.focus();
+        await page.keyboard.press('Enter');
+      } else await card.click();
+      await expect(card).toHaveAttribute('aria-pressed', 'true');
+      await expect(status).toContainText(labels[index]);
+      await expect.poll(() => queries.at(-1)?.get('status')).toBe(key);
+      expect(queries.at(-1)?.get('page')).toBe('1');
+      expect(queries.at(-1)?.get('search')).toBe('TEST');
+      expect(queries.at(-1)?.get('branch')).toBe(f.batch.branchId);
+      await expect(page.locator('#invoice-upload-history tbody tr').first()).toContainText(
+        `TEST-${key.toUpperCase()}`,
+      );
+      await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(1);
+    }
+    await cards.getByRole('button', { name: 'Filter Sedang dikirim', exact: true }).click();
+    await expect(status).toContainText('Semua status');
+    await expect(cards.locator('[aria-pressed="true"]')).toHaveCount(0);
+    await expect.poll(() => queries.at(-1)?.has('status')).toBe(false);
+    await page.screenshot({
+      path: `tmp/invoice-summary-filters-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(f.errors).toEqual([]);
+  });
+
+test('workflow checks completed stages, keeps failed delivery status, and provides clear PDF navigation', async ({
+  page,
+}) => {
+  const f = await fixture(page, false);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let sourceReads = 0;
+  await page.route('**/api/imports/review-batch/files/source-file', async (route) => {
+    sourceReads++;
+    await route.fulfill({ contentType: 'application/pdf', body: twoPagePdf() });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
+  const steps = page.getByRole('list', { name: 'Tahapan upload invoice', exact: true });
+  await expect(steps.locator('[data-state="complete"]')).toHaveCount(0);
+  await expect(steps.getByRole('listitem').nth(0)).toHaveAttribute('aria-current', 'step');
+  await page.getByRole('button', { name: 'Kembali ke riwayat', exact: true }).click();
+  await page.getByRole('button', { name: 'Buka batch review-b', exact: true }).click();
+  await expect(steps.locator('[data-state="complete"]')).toHaveCount(1);
+  await expect(steps.getByRole('listitem').nth(1)).toHaveAttribute('aria-current', 'step');
+  await expect(steps.locator('li:first-child > span > svg')).toHaveClass(/lucide-check/);
+  await expect(steps.locator('li:first-child > span')).toHaveCSS(
+    'background-color',
+    'rgb(237, 248, 242)',
+  );
+  await expect(
+    page.getByText('Upload, periksa, lalu submit invoice Anda.', { exact: true }),
+  ).toHaveCount(0);
+  const heading = page.locator('.page-heading');
+  const upload = heading.getByRole('button', { name: 'Upload batch baru', exact: true });
+  await expect(upload).toBeVisible();
+  const headingBounds = (await heading.boundingBox())!;
+  const uploadBounds = (await upload.boundingBox())!;
+  expect(uploadBounds.x).toBeGreaterThan(headingBounds.x + headingBounds.width / 2);
+  expect(uploadBounds.y).toBeLessThan(headingBounds.y + headingBounds.height);
+  f.batch.status = 'SUBMITTED';
+  f.batch.rows[0].status = 'QUEUED';
+  f.batch.rows[0].invoiceId = 'created-invoice';
+  f.batch.rows[0].syncStatus = 'PENDING';
+  await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+  await expect(steps.locator('[data-state="complete"]')).toHaveCount(2);
+  await expect(steps.getByRole('listitem').nth(2)).toHaveAttribute('aria-current', 'step');
+  for (const result of ['SYNCED', 'FAILED', 'NEEDS_REVIEW']) {
+    f.batch.rows[0].syncStatus = result;
+    await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+    await expect(steps.locator('[data-state="complete"]')).toHaveCount(3);
+    await expect(steps.locator('li > span > svg.lucide-check')).toHaveCount(3);
+    await expect(steps.locator('[aria-current]')).toHaveCount(0);
+  }
+  await page.screenshot({ path: 'tmp/invoice-workflow-complete.png' });
+  f.batch.status = 'PREVIEW';
+  f.batch.rows[0].status = 'VALID';
+  f.batch.rows[0].syncStatus = null;
+  f.batch.rows[0].invoiceId = null;
+  await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+  await page.getByRole('button', { name: 'Periksa INV-UI-001', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const previous = dialog.getByRole('button', { name: 'Halaman PDF sebelumnya', exact: true });
+  const next = dialog.getByRole('button', { name: 'Halaman PDF berikutnya', exact: true });
+  await expect(dialog.getByRole('img', { name: 'PDF sumber halaman 1' })).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
+  await expect(next.locator('svg')).toHaveCSS('width', '20px');
+  await expect(previous.locator('svg')).toHaveCSS('width', '20px');
+  await expect(dialog.getByText('Zoom', { exact: true })).toHaveCount(0);
+  const zoom = dialog.getByRole('combobox', { name: 'Zoom PDF sumber', exact: true });
+  const zoomBounds = (await zoom.boundingBox())!;
+  const nextBounds = (await next.boundingBox())!;
+  expect(zoomBounds.width).toBeLessThan(120);
+  expect(Math.abs(zoomBounds.y - nextBounds.y)).toBeLessThan(8);
+  await next.click();
+  await expect(dialog.getByRole('img', { name: 'PDF sumber halaman 2' })).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await expect(next).toBeDisabled();
+  await previous.click();
+  await expect(dialog.getByRole('img', { name: 'PDF sumber halaman 1' })).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await selectOption(dialog.getByRole('combobox', { name: 'Zoom PDF sumber', exact: true }), '125');
+  expect(sourceReads).toBe(1);
+  await page.screenshot({ path: 'tmp/invoice-pdf-controls.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await zoom.scrollIntoViewIfNeeded();
+  const mobileZoom = (await zoom.boundingBox())!;
+  const mobileNext = (await next.boundingBox())!;
+  expect(mobileZoom.width).toBeLessThan(120);
+  expect(Math.abs(mobileZoom.y - mobileNext.y)).toBeLessThan(8);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'tmp/invoice-pdf-controls-mobile.png' });
+  expect(f.errors).toEqual([]);
+});
+
+for (const mobile of [false, true])
+  test(`nominal discounts convert for display without changing exact rupiah input (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+    f.state.failAdd = false;
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: 1000 });
+    await openReview(page, mobile);
+    await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+    const form = page.getByRole('form', { name: 'Form tambah item', exact: true });
+    await form
+      .getByRole('textbox', { name: 'Nama item baru', exact: true })
+      .fill('Nominal source treatment');
+    await form.getByRole('textbox', { name: 'Harga unit item baru', exact: true }).fill('1801802');
+    await switchDiscount(page, 'item baru', 'Nominal (Rp)');
+    await form
+      .getByRole('textbox', { name: 'Diskon nominal item baru', exact: true })
+      .fill('1622523');
+    await form.getByRole('spinbutton', { name: 'Pajak persen item baru', exact: true }).fill('11');
+    await form
+      .getByRole('textbox', { name: 'Alasan penambahan item', exact: true })
+      .fill('Treatment and nominal discount verified against the source');
+    await expect(form).toContainText(/Rp\s*179\.279/);
+    await expect(form).toContainText(/Rp\s*199\.000/);
+    await switchDiscount(page, 'item baru', 'Persentase (%)');
+    await expect(
+      form.getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true }),
+    ).toHaveValue('90.050017');
+    await expect(form).toContainText(/Rp\s*199\.000/);
+    await switchDiscount(page, 'item baru', 'Nominal (Rp)');
+    await expect(
+      form.getByRole('textbox', { name: 'Diskon nominal item baru', exact: true }),
+    ).toHaveValue('1.622.523');
+    await form.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: 'tmp/nominal-discount-' + (mobile ? 'mobile' : 'desktop') + '.png',
+    });
+    await form.getByRole('button', { name: 'Simpan item baru', exact: true }).click();
+    await expect.poll(() => f.additions.length).toBe(1);
+    expect(f.additions[0].discountAmount).toBe(1622523);
+    expect(f.additions[0].discountPercent).toBeUndefined();
+    expect(f.errors).toEqual([]);
+  });
+
+test('an exact nominal discount can be edited without submitting its derived percentage', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mapped: true });
+  const item = f.batch.rows[0].candidate.items[0];
+  Object.assign(item, { unitPrice: 1801802, discount: 1622523, tax: 19721 });
+  const corrections: Record<string, unknown>[] = [];
+  await page.route('**/api/imports/review-batch/rows/review-row/items/service-1', async (route) => {
+    const input: Record<string, unknown> = route.request().postDataJSON();
+    corrections.push(input);
+    f.batch.version++;
+    item.discount = Number(input.discountAmount);
+    return route.fulfill({ json: f.batch });
+  });
+  await openReview(page);
+  await page.getByRole('button', { name: 'Edit item Layanan Uji', exact: true }).click();
+  const inputTops = await Promise.all(
+    [
+      page.getByRole('textbox', { name: 'Nama item', exact: true }),
+      page.getByRole('spinbutton', { name: 'Qty item', exact: true }),
+      page.getByRole('textbox', { name: 'Harga awal item', exact: true }),
+      page.getByRole('textbox', { name: 'Diskon nominal item', exact: true }),
+      page.getByRole('spinbutton', { name: 'Pajak persen item', exact: true }),
+    ].map(async (control) => (await control.boundingBox())!.y),
+  );
+  expect(Math.max(...inputTops) - Math.min(...inputTops)).toBeLessThan(1);
+  await expect(page.getByRole('textbox', { name: 'Diskon nominal item', exact: true })).toHaveValue(
+    '1.622.523',
+  );
+  await switchDiscount(page, 'item', 'Persentase (%)');
+  await switchDiscount(page, 'item', 'Nominal (Rp)');
+  await page.getByRole('textbox', { name: 'Diskon nominal item', exact: true }).fill('1622522');
+  await page
+    .getByRole('textbox', { name: 'Alasan koreksi item', exact: true })
+    .fill('Nominal checked against original receipt');
+  await page.getByRole('button', { name: 'Simpan perubahan item', exact: true }).click();
+  await expect.poll(() => corrections.length).toBe(1);
+  expect(corrections[0].discountAmount).toBe(1622522);
+  expect(corrections[0].discountPercent).toBeUndefined();
+  expect(f.errors).toEqual([]);
+});
+
+test('a package extraction note requires a reason and stays visible after its review is saved', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mapped: true });
+  const row = f.batch.rows[0];
+  const parserError =
+    'Rincian tabel Benefit belum terbaca lengkap. Lengkapi semua layanan sesuai dokumen sumber.';
+  row.errors = [parserError];
+  row.status = 'REVIEW';
+  row.exceptionReview = { errors: [parserError], allowed: true, blockers: [], accepted: false };
+  const acknowledgements: Record<string, unknown>[] = [];
+  await page.route('**/api/imports/review-batch/rows/review-row/reviewed', async (route) => {
+    const input: Record<string, unknown> = route.request().postDataJSON();
+    acknowledgements.push(input);
+    row.candidate.accountingReviewedAt = '2026-11-24T05:00:00Z';
+    row.candidate.reviewException = {
+      reason: String(input.exceptionReason),
+      actorId: 'review-admin',
+      reviewedAt: '2026-11-24T05:00:00Z',
+      fingerprint: 'snapshot',
+      errors: [parserError],
+    };
+    row.exceptionReview!.accepted = true;
+    row.errors = [];
+    f.batch.version++;
+    return route.fulfill({ json: f.batch });
+  });
+  await openReview(page);
+  const panel = page.getByRole('alert', {
+    name: 'Pemeriksaan invoice dengan catatan',
+    exact: true,
+  });
+  await panel
+    .getByRole('checkbox', { name: 'Simpan pemeriksaan dengan catatan', exact: true })
+    .check();
+  const save = page.getByRole('button', { name: 'Simpan pemeriksaan dengan catatan', exact: true });
+  await expect(save).toBeDisabled();
+  const reason =
+    'All treatments manually checked and reconciled against the original Benefit table';
+  await panel
+    .getByRole('textbox', { name: 'Alasan melanjutkan dengan catatan', exact: true })
+    .fill(reason);
+  await save.click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(acknowledgements[0].exceptionReason).toBe(reason);
+  await expect(
+    page.getByRole('button', { name: 'Submit dengan catatan', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Periksa INV-UI-001', exact: true }).click();
+  await expect(panel).toContainText(reason);
+  await expect(panel).toContainText('Pemeriksaan dengan catatan tersimpan');
+  expect(f.errors).toEqual([]);
+});
+
+test('financial blockers disable review with a note and re-reading requires explicit confirmation', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mapped: true });
+  const row = f.batch.rows[0];
+  const error =
+    'Rincian tabel Benefit belum terbaca lengkap. Lengkapi semua layanan sesuai dokumen sumber.';
+  row.errors = [error, 'Jumlah item setelah diskon tidak sama dengan subtotal.'];
+  row.status = 'REVIEW';
+  row.exceptionReview = {
+    errors: [error],
+    allowed: false,
+    blockers: ['Jumlah item setelah diskon tidak sama dengan subtotal.'],
+    accepted: false,
+  };
+  const resets: Record<string, unknown>[] = [];
+  await page.route('**/api/imports/review-batch/files/source-file/reparse', async (route) => {
+    resets.push(route.request().postDataJSON());
+    row.errors = [];
+    row.exceptionReview = undefined;
+    f.batch.version++;
+    return route.fulfill({ json: f.batch });
+  });
+  await openReview(page);
+  const panel = page.getByRole('alert', {
+    name: 'Pemeriksaan invoice dengan catatan',
+    exact: true,
+  });
+  await expect(
+    panel.getByRole('checkbox', { name: 'Simpan pemeriksaan dengan catatan', exact: true }),
+  ).toBeDisabled();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await panel.getByRole('button', { name: 'Baca ulang detail Benefit', exact: true }).click();
+  expect(resets).toEqual([]);
+  page.once('dialog', (dialog) => dialog.accept());
+  await panel.getByRole('button', { name: 'Baca ulang detail Benefit', exact: true }).click();
+  await expect.poll(() => resets.length).toBe(1);
+  expect(resets[0]).toEqual({ version: 1, resetReview: true });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(f.errors).toEqual([]);
+});
+
+async function switchDiscount(page: Page, label: string, option: string) {
+  const trigger = page.getByRole('button', { name: new RegExp('^Jenis diskon ' + label + ':') });
+  await trigger.click();
+  const choices = page.getByRole('group', { name: 'Pilihan format diskon ' + label, exact: true });
+  await expect(choices.getByRole('button')).toHaveCount(1);
+  await choices.getByRole('button', { name: option, exact: true }).click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+}
+
+test('currency editing keeps grouping, caret, paste and fractional prices out of the API payload', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+  f.state.failAdd = false;
+  await openReview(page);
+  await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+  const form = page.getByRole('form', { name: 'Form tambah item', exact: true });
+  const price = form.getByRole('textbox', { name: 'Harga unit item baru', exact: true });
+  await price.fill('');
+  await price.pressSequentially('.5');
+  await expect(price).toHaveValue('0,5');
+  await price.fill('');
+  await price.pressSequentially('1234567');
+  await expect(price).toHaveValue('1.234.567');
+  await price.evaluate((input: HTMLInputElement) => input.setSelectionRange(2, 2));
+  await price.press('Backspace');
+  await expect(price).toHaveValue('234.567');
+  await price.press('ControlOrMeta+A');
+  await price.pressSequentially('1234.123456');
+  await expect(price).toHaveValue('1.234,123456');
+  // Replacing a middle digit must keep the caret in that position.
+  await price.evaluate((input: HTMLInputElement) => input.setSelectionRange(2, 3));
+  await price.pressSequentially('9');
+  await expect(price).toHaveValue('1.934,123456');
+  expect(await price.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(3);
+  await price.press('ControlOrMeta+A');
+  await price.evaluate((input: HTMLInputElement) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text', 'Rp 1.801.802,123456');
+    input.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
+    );
+  });
+  await expect(price).toHaveValue('1.801.802,123456');
+  await price.fill('1801,1234');
+  await form.getByRole('spinbutton', { name: 'Qty item baru', exact: true }).fill('10000');
+  await form
+    .getByRole('textbox', { name: 'Nama item baru', exact: true })
+    .fill('Decimal treatment');
+  await form
+    .getByRole('textbox', { name: 'Alasan penambahan item', exact: true })
+    .fill('Decimal unit price verified against the source');
+  await form.getByRole('button', { name: 'Simpan item baru', exact: true }).click();
+  await expect.poll(() => f.additions.length).toBe(1);
+  expect(f.additions[0].unitPrice).toBe(1801.1234);
+  expect(f.additions[0].quantity).toBe(10000);
+  expect(f.errors).toEqual([]);
+});
+
+for (const mobile of [false, true])
+  test(`discount suffix reveals one attached right-hand choice without covering fields (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: mobile ? 390 : 1600, height: 1000 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+    await openReview(page, mobile);
+    await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+    const form = page.getByRole('form', { name: 'Form tambah item', exact: true });
+    await form.getByRole('textbox', { name: 'Harga unit item baru', exact: true }).fill('1801802');
+    await form
+      .getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true })
+      .fill('90.050017');
+    const trigger = form.getByRole('button', { name: /^Jenis diskon item baru:/ });
+    const choices = form.getByRole('group', {
+      name: 'Pilihan format diskon item baru',
+      exact: true,
+    });
+    const tax = form.getByRole('spinbutton', { name: 'Pajak persen item baru', exact: true });
+    await trigger.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `tmp/discount-suffix-closed-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    const taxBefore = await tax.boundingBox();
+    await expect(trigger).toHaveText('%');
+    await trigger.focus();
+    await trigger.press('Enter');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(choices.getByRole('button')).toHaveCount(1);
+    const option = choices.getByRole('button', { name: 'Nominal (Rp)', exact: true });
+    const optionBox = await option.boundingBox();
+    const choiceBox = await choices.boundingBox();
+    const input = form.getByRole('spinbutton', { name: 'Diskon persen item baru', exact: true });
+    const groupBox = await input.locator('..').boundingBox();
+    const taxAfter = await tax.boundingBox();
+    expect(optionBox && choiceBox && groupBox && taxBefore && taxAfter).toBeTruthy();
+    expect(Math.abs(choiceBox!.height - groupBox!.height)).toBeLessThan(1);
+    expect(Math.abs(choiceBox!.y - groupBox!.y)).toBeLessThan(1);
+    expect(optionBox!.x).toBeGreaterThanOrEqual(groupBox!.x + groupBox!.width - 2);
+    expect(taxAfter).toEqual(taxBefore);
+    expect(await choices.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
+    await page.screenshot({
+      path: `tmp/discount-suffix-open-${mobile ? 'mobile' : 'desktop'}.png`,
+    });
+    await page.keyboard.press('Tab');
+    await expect(option).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.press('ArrowRight');
+    await expect(option).toBeFocused();
+    await option.press('Enter');
+    await expect(
+      form.getByRole('textbox', { name: 'Diskon nominal item baru', exact: true }),
+    ).toHaveValue('1.622.523');
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveText('Rp');
+    await trigger.click();
+    await expect(choices.getByRole('button')).toHaveCount(1);
+    await expect(
+      choices.getByRole('button', { name: 'Persentase (%)', exact: true }),
+    ).toBeVisible();
+    await tax.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await trigger.click();
+    const motion = await choices.locator('.discount-format-slide').evaluate((el) => {
+      const css = getComputedStyle(el);
+      return { properties: css.transitionProperty, duration: css.transitionDuration };
+    });
+    expect(motion.properties).toBe('transform, opacity, visibility');
+    expect(motion.duration).toContain('0.28s');
+    expect(f.errors).toEqual([]);
+  });
+
+test('discount disclosure interpolates across frames instead of appearing at its final position', async ({
+  page,
+}) => {
+  const f = await fixture(page, false, { mode: 'simulation', mapped: true });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await openReview(page);
+  await page.getByRole('button', { name: 'Tambah item', exact: true }).click();
+  const trigger = page.getByRole('button', { name: /^Jenis diskon item baru:/ });
+  await trigger.scrollIntoViewIfNeeded();
+  const samples = await trigger.evaluate((control: HTMLButtonElement) => {
+    const root = control.closest('[data-discount-control]')!;
+    const front = root.querySelector('.discount-format-front')!;
+    const slide = root.querySelector('.discount-format-slide')!;
+    const frames: { margin: number; opacity: number }[] = [];
+    control.click();
+    return new Promise<typeof frames>((resolve) => {
+      const start = performance.now();
+      function frame() {
+        frames.push({
+          margin: parseFloat(getComputedStyle(front).marginRight),
+          opacity: parseFloat(getComputedStyle(slide).opacity),
+        });
+        if (performance.now() - start < 340) requestAnimationFrame(frame);
+        else resolve(frames);
+      }
+      requestAnimationFrame(frame);
+    });
+  });
+  expect(samples.filter(({ margin }) => margin > 1 && margin < 43).length).toBeGreaterThan(2);
+  expect(samples.filter(({ opacity }) => opacity > 0 && opacity < 0.99).length).toBeGreaterThan(2);
+  expect(samples.at(-1)!.margin).toBeCloseTo(44, 0);
+  expect(samples.at(-1)!.opacity).toBeCloseTo(1, 2);
+  await page.screenshot({ path: 'tmp/discount-smooth-reveal.png' });
+  expect(f.errors).toEqual([]);
+});

@@ -1,0 +1,74 @@
+import { api } from '@/services/api-client';
+import type {
+  ReceiptAccount,
+  ReceiptAmountMode,
+  ReceiptConfiguration,
+  ReceiptDetail,
+  ReceiptDraft,
+  ReceiptFilters,
+  ReceiptMapping,
+  ReceiptOverview,
+} from '../types';
+
+export function getReceiptOverview(filters: ReceiptFilters, signal?: AbortSignal) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters))
+    if (value !== '') query.set(key, String(value));
+  return api<ReceiptOverview>(`/receipts?${query}`, { signal });
+}
+export const getReceiptConfiguration = (branchId?: string) =>
+  api<ReceiptConfiguration>(
+    `/receipts/configuration${branchId ? `?${new URLSearchParams({ branchId })}` : ''}`,
+  );
+export function searchReceiptAccounts(
+  kind: 'bank' | 'fee',
+  search: string,
+  page: number,
+  branchId?: string,
+) {
+  return api<{ database: { id: string; name: string }; items: ReceiptAccount[] }>(
+    `/receipts/accounts?${new URLSearchParams({ kind, search, page: String(page), ...(branchId ? { branchId } : {}) })}`,
+  );
+}
+export function saveReceiptMapping(
+  input: Pick<
+    ReceiptMapping,
+    'branchId' | 'bank' | 'method' | 'accountId' | 'feeAccountId' | 'version'
+  > & { rateBps?: number },
+) {
+  return api<ReceiptMapping>('/receipts/mappings', { method: 'PUT', body: JSON.stringify(input) });
+}
+export function prepareReceipt(invoiceId: string, sourceKey: string) {
+  return api<ReceiptDraft>('/receipts/drafts', {
+    method: 'POST',
+    body: JSON.stringify({ invoiceId, sourceKey }),
+  });
+}
+export const getReceipt = (id: string, signal?: AbortSignal) =>
+  api<ReceiptDetail>(`/receipts/${encodeURIComponent(id)}`, { signal });
+export function saveReceipt(
+  id: string,
+  input: Pick<ReceiptDraft, 'paymentDate' | 'paymentReference' | 'notes' | 'version'> & {
+    mappingId: string;
+    mappingVersion: number;
+    receiptNumber?: string;
+    amountMode?: ReceiptAmountMode;
+    inputAmount?: number;
+    rateOverrideBps?: number | null;
+  },
+) {
+  return api<ReceiptDraft>(`/receipts/${id}`, { method: 'PUT', body: JSON.stringify(input) });
+}
+export function submitReceipt(id: string, version: number) {
+  return api<ReceiptDraft>(`/receipts/${id}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ version, confirmed: true }),
+  });
+}
+export const checkReceipt = (id: string) =>
+  api<ReceiptDraft>(`/receipts/${id}/check`, { method: 'POST', body: '{}' });
+export const reopenReceipt = (id: string, version: number) =>
+  api<ReceiptDraft>(`/receipts/${id}/reopen`, {
+    method: 'POST',
+    body: JSON.stringify({ version }),
+  });

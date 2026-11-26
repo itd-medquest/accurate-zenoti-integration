@@ -47,7 +47,7 @@ test('desktop dashboard, retired modules absent, invoice detail, settings, users
   await page.getByRole('tab', { name: 'Riwayat sinkronisasi', exact: true }).click();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Accurate Online', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Uji koneksi tersimpan', exact: true }).first().click();
   await expect(
@@ -57,13 +57,13 @@ test('desktop dashboard, retired modules absent, invoice detail, settings, users
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Tujuan perusahaan', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tujuan Faktur Penjualan aktual' })).toBeVisible();
-  await page.getByRole('button', { name: 'User Management', exact: true }).click();
+  await page.getByRole('link', { name: 'User Management', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Pengguna & hak akses' })).toBeVisible();
   await expect(page.getByText(env.SEED_ADMIN_EMAIL, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Tambah pengguna', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Audit Log', exact: true }).click();
+  await page.getByRole('link', { name: 'Audit Log', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Audit aktivitas', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
   expect(listRequests.length).toBeGreaterThan(0);
@@ -79,10 +79,10 @@ test('mobile responsive navigation, invoice detail, and touch controls', async (
   await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Closed Invoices', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Unclosed Invoices', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Faktur Penjualan.', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-  await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
@@ -95,10 +95,10 @@ test('viewer can monitor but cannot access operational controls', async ({ page 
   await login(page, 'viewer@example.test');
   await expect(page.getByRole('button', { name: 'Upload invoice', exact: true })).toHaveCount(0);
   await expect(
-    page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }),
+    page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'User Management', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'User Management', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Closed Invoices', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Unclosed Invoices', exact: true })).toHaveCount(0);
   await page.locator('.activity-panel .invoice-link').first().click();

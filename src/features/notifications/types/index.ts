@@ -1,4 +1,4 @@
-import type { Invoice } from '@/features/invoices/types';
+import type { Invoice } from '@/features/easyrecap/invoices/types';
 
 export type NotificationPage = {
   rows: Invoice[];

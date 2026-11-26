@@ -29,7 +29,7 @@ test('actual invoice UI maps customer and items, preserves preview and shows ver
   await page.getByLabel('Email', { exact: true }).fill(env.SEED_ADMIN_EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(env.SEED_ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Masuk', exact: true }).click();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByLabel('API Token', { exact: true }).fill('browser-test-token');
   await page.getByLabel('Signature Secret', { exact: true }).fill('browser-test-signature');
   await selectOption(page.getByLabel('Mode pengiriman', { exact: true }), 'live');
@@ -50,7 +50,7 @@ test('actual invoice UI maps customer and items, preserves preview and shows ver
   expect((await savedAgain).postDataJSON()).toEqual({ enabled: true, accurate: { mode: 'live' } });
   await expect(page.getByRole('button', { name: 'Simpan koneksi', exact: true })).toBeEnabled();
   await page.reload();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('API Token', { exact: true })).toHaveValue('••••••••••••••••');
   await expect(page.getByLabel('Signature Secret', { exact: true })).toHaveValue(
     '••••••••••••••••',
@@ -71,7 +71,7 @@ test('actual invoice UI maps customer and items, preserves preview and shows ver
   await page.getByRole('button', { name: 'Simpan pilihan', exact: true }).click();
   await expect(page.getByText('Database: Test Company (999)', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const number = `BROWSER-${Date.now()}`;
   await page.getByLabel('Pilih file invoice').setInputFiles({
@@ -192,7 +192,7 @@ test('actual invoice UI maps customer and items, preserves preview and shows ver
   await page.getByRole('checkbox').last().check();
   await page.getByRole('button', { name: 'Submit Faktur ke Accurate', exact: true }).click();
   await expect(page.getByText('Tersinkron', { exact: true })).toBeVisible({ timeout: 20000 });
-  await page.getByRole('button', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
+  await page.getByRole('link', { name: 'Penerimaan Penjualan (Receipt)', exact: true }).click();
   await expect(page.getByRole('cell', { name: new RegExp(number) })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Penerimaan Penjualan.' })).toBeVisible();
   await expect(page.getByText('Belum direview', { exact: true }).first()).toBeVisible();

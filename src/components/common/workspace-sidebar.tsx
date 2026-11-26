@@ -1,5 +1,7 @@
 'use client';
 import { useEffect } from 'react';
+import Link from 'next/link';
+import { workspacePath } from '@/lib/workspace-navigation';
 import type { LucideIcon } from 'lucide-react';
 import { Settings, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,6 @@ export function WorkspaceSidebar({
   view,
   items,
   onModuleChange,
-  onNavigate,
   onCloseMobile,
 }: {
   actor: Actor;
@@ -27,7 +28,6 @@ export function WorkspaceSidebar({
   view: View;
   items: { id: View; label: string; icon: LucideIcon }[];
   onModuleChange: (module: ModuleId) => void;
-  onNavigate: (view: View) => void;
   onCloseMobile: () => void;
 }) {
   useEffect(() => {
@@ -55,20 +55,26 @@ export function WorkspaceSidebar({
         title={item.label}
         aria-current={view === item.id ? 'page' : undefined}
         className={cn(
-          'nav-item h-12 w-full justify-start gap-3 overflow-hidden px-3',
+          'nav-item h-12 w-full justify-start gap-3 overflow-hidden px-3 text-foreground',
           collapsed &&
             'min-[761px]:mx-auto min-[761px]:size-12 min-[761px]:justify-center min-[761px]:gap-0 min-[761px]:p-0',
           view === item.id && 'active',
         )}
         size={collapsed ? 'icon' : 'default'}
         variant="ghost"
-        onClick={() => onNavigate(item.id)}
+        asChild
       >
-        <Icon data-icon="inline-start" />
-        <span className={cn(labelClass, 'flex-1')}>
-          <span className="block w-48 truncate">{primary}</span>
-          {secondary && <small className="block w-48 truncate">({secondary}</small>}
-        </span>
+        <Link
+          href={workspacePath(activeModule, item.id)}
+          prefetch={false}
+          onNavigate={onCloseMobile}
+        >
+          <Icon data-icon="inline-start" />
+          <span className={cn(labelClass, 'flex-1')}>
+            <span className="block w-48 truncate">{primary}</span>
+            {secondary && <small className="block w-48 truncate">({secondary}</small>}
+          </span>
+        </Link>
       </Button>
     );
   };
@@ -88,8 +94,10 @@ export function WorkspaceSidebar({
           collapsed && 'min-[761px]:justify-center min-[761px]:px-0',
         )}
       >
-        <a
-          href="/"
+        <Link
+          href={workspacePath(activeModule, 'dashboard')}
+          prefetch={false}
+          onNavigate={onCloseMobile}
           aria-label="intgrte beranda"
           className={cn(
             'relative inline-flex h-12 w-28 shrink-0 items-center',
@@ -111,7 +119,7 @@ export function WorkspaceSidebar({
               collapsed && 'min-[761px]:opacity-100',
             )}
           />
-        </a>
+        </Link>
         <Button
           variant="ghost"
           size="icon"

@@ -60,7 +60,7 @@ async function setup(page: Page, mobile: boolean, role = 'super_admin') {
   await expect(page.getByRole('heading', { name: /^Selamat / })).toBeVisible();
   if (!mobile) await page.getByRole('button', { name: 'Gunakan mode gelap', exact: true }).click();
   if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   const invoice = `CUSTOMER-${randomUUID().slice(0, 8)}`;
   await page.getByLabel('Pilih file invoice').setInputFiles({
@@ -199,7 +199,7 @@ test('customer response lost in browser can be checked without a new request ide
 });
 test('finance can create and map a customer from empty results without Settings access', async ({ page }) => {
   const { field } = await setup(page, false, 'finance');
-  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
   await field.getByRole('button', { name: 'Tambah customer', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Tambah customer Accurate', exact: true });
   await expect(form.getByLabel('ID pelanggan', { exact: true })).toHaveValue(/^MPA-\d+$/);

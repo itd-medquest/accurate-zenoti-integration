@@ -35,7 +35,7 @@ test('wider sidebar collapses, retains navigation labels and persists preference
       return mainBox && sidebarBox ? mainBox.x - sidebarBox.x - sidebarBox.width : null;
     })
     .toBe(0);
-  await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+  await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
   await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Perusahaan tujuan upload' })).toContainText(
     'PT. MMI',
@@ -100,7 +100,7 @@ for (const mobile of [false, true]) {
       const logo = await page.locator('.sidebar [data-slot="brand-logo"]').boundingBox();
       expect(logo!.width).toBeLessThanOrEqual(112);
       await page.getByRole('button', { name: 'Ciutkan sidebar', exact: true }).click();
-      const dashboard = page.getByRole('button', { name: 'Dashboard', exact: true });
+      const dashboard = page.getByRole('link', { name: 'Dashboard', exact: true });
       const target = await dashboard.boundingBox();
       const icon = await dashboard.locator('svg').boundingBox();
       expect(target!.width).toBe(target!.height);

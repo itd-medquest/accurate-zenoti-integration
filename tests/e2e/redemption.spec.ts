@@ -51,7 +51,7 @@ for (const mobile of [false, true])
       });
       expect(settings.ok()).toBe(true);
       if (mobile) await page.getByRole('button', { name: 'Buka navigasi', exact: true }).click();
-      await page.getByRole('button', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
+      await page.getByRole('link', { name: 'Faktur Penjualan (Invoices)', exact: true }).click();
       await page.getByRole('button', { name: 'Upload invoice', exact: true }).click();
       const branch = await selectedValue(
         page.getByLabel('Perusahaan tujuan upload', { exact: true }),

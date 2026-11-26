@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { AccurateMasterPicker } from '@/features/invoices/components/accurate-master-picker';
+import { AccurateMasterPicker } from '@/features/easyrecap/invoices/components/accurate-master-picker';
 import {
   getAccurateStatus,
   saveAccurateDestination,
-} from '@/features/invoices/services/accurate.service';
-import type { AccurateStatus } from '@/features/invoices/types/accurate';
+} from '@/features/easyrecap/invoices/services/accurate.service';
+import type { AccurateStatus } from '@/features/easyrecap/invoices/types/accurate';
 import type { Branch } from '@/types';
 import { Building2 } from 'lucide-react';
 export function AccurateDestinations({ branches }: { branches: Branch[] }) {

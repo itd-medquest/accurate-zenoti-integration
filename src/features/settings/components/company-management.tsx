@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Building2, Plus, Settings2, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, Settings2, Trash2 } from 'lucide-react';
 import { Loading } from '@/components/ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,7 @@ import { usePolledResource } from '@/hooks/use-polled-resource';
 import {
   createCompany,
   deleteCompany,
+  renameCompany,
   listCompanies,
   type ManagedCompany,
 } from '../services/settings.service';
@@ -55,6 +56,7 @@ export function CompanyManagement({
     fallback: 'Daftar perusahaan gagal dimuat.',
   });
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<ManagedCompany | null>(null);
   const [name, setName] = useState('');
   const [target, setTarget] = useState<ManagedCompany | null>(null);
   const [confirmation, setConfirmation] = useState('');
@@ -140,6 +142,19 @@ export function CompanyManagement({
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={busy}
+                  aria-label={`Edit nama perusahaan ${company.name}`}
+                  onClick={() => {
+                    setName(company.name);
+                    setError('');
+                    setEditing(company);
+                  }}
+                >
+                  <Pencil data-icon="inline-start" /> Edit nama
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => onConfigure(company.id)}
                   aria-label={`Atur koneksi ${company.name}`}
                 >
@@ -164,17 +179,21 @@ export function CompanyManagement({
         </CardContent>
       </Card>
       <Dialog
-        open={adding}
+        open={adding || !!editing}
         onOpenChange={(open) => {
-          if (!busy) setAdding(open);
+          if (!busy && !open) {
+            setAdding(false);
+            setEditing(null);
+          }
         }}
       >
         <DialogContent showCloseButton={!busy}>
           <DialogHeader>
-            <DialogTitle>Tambah perusahaan</DialogTitle>
+            <DialogTitle>{editing ? 'Edit nama perusahaan' : 'Tambah perusahaan'}</DialogTitle>
             <DialogDescription>
-              Setelah ditambahkan, isi koneksi Accurate, pilih tujuan perusahaan, lalu atur akun
-              penerimaannya.
+              {editing
+                ? 'Perbarui nama perusahaan di intgrte. Koneksi, mapping, dan riwayat transaksi tetap tersimpan.'
+                : 'Setelah ditambahkan, isi koneksi Accurate, pilih tujuan perusahaan, lalu atur akun penerimaannya.'}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -186,12 +205,25 @@ export function CompanyManagement({
               setError('');
               setNotice('');
               try {
-                const created = await createCompany(name.trim());
+                const created = editing
+                  ? await renameCompany(editing.id, name.trim(), editing.name)
+                  : await createCompany(name.trim());
                 setAdding(false);
-                setNotice(`${created.name} berhasil ditambahkan. Lanjutkan melalui Atur koneksi.`);
+                setEditing(null);
+                setNotice(
+                  editing
+                    ? `Nama perusahaan berhasil diubah menjadi ${created.name}.`
+                    : `${created.name} berhasil ditambahkan. Lanjutkan melalui Atur koneksi.`,
+                );
                 await changed();
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : 'Perusahaan gagal ditambahkan.');
+                setError(
+                  cause instanceof Error
+                    ? cause.message
+                    : editing
+                      ? 'Nama perusahaan gagal diubah.'
+                      : 'Perusahaan gagal ditambahkan.',
+                );
               } finally {
                 setBusy(false);
               }
@@ -221,12 +253,28 @@ export function CompanyManagement({
                 type="button"
                 variant="outline"
                 disabled={busy}
-                onClick={() => setAdding(false)}
+                onClick={() => {
+                  setAdding(false);
+                  setEditing(null);
+                }}
               >
                 Batal
               </Button>
-              <Button type="submit" disabled={busy || !name.trim()}>
-                {busy ? 'Menambahkan…' : 'Tambah perusahaan'}
+              <Button
+                type="submit"
+                disabled={
+                  busy ||
+                  !name.trim() ||
+                  (!!editing && name.trim().replace(/\s+/g, ' ') === editing.name)
+                }
+              >
+                {editing
+                  ? busy
+                    ? 'Menyimpan…'
+                    : 'Simpan perubahan'
+                  : busy
+                    ? 'Menambahkan…'
+                    : 'Tambah perusahaan'}
               </Button>
             </DialogFooter>
           </form>

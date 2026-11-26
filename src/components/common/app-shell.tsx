@@ -2,50 +2,37 @@
 import { WorkspaceSidebar } from './workspace-sidebar';
 import { AccountMenu } from './account-menu';
 import { ThemeToggle } from './theme-toggle';
-import { DashboardGreeting } from '@/features/dashboard/components/dashboard-greeting';
+import { DashboardGreeting } from '@/features/easyrecap/dashboard/components/dashboard-greeting';
 import { useWorkspaceSidebar } from '@/hooks/use-workspace-sidebar';
 import { useConditionalPolling } from '@/hooks/use-conditional-polling';
 import { BrandLogo } from '@/components/common/brand-logo';
-import { type ModuleId } from '@/components/common/module-switch';
 import { Loading } from '@/components/ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { SelectField, SelectFieldOption } from '@/components/ui/select-field';
 import { Toast } from '@/components/ui/toast';
-import { AuditView } from '@/features/audit/components/audit-view';
 import { Login } from '@/features/auth/components/login';
-import { PasswordForm } from '@/features/auth/components/password-form';
 import { useSession } from '@/features/auth/hooks/use-session';
 import { signOut } from '@/features/auth/services/auth.service';
-import { Overview } from '@/features/dashboard/components/overview';
-import { useDashboard } from '@/features/dashboard/hooks/use-dashboard';
-import { useJakartaClock } from '@/features/dashboard/hooks/use-jakarta-clock';
-import { greetingAt } from '@/features/dashboard/utils/greeting';
-import { CommandComingSoon } from '@/features/command/components/command-coming-soon';
+import { useDashboard } from '@/features/easyrecap/dashboard/hooks/use-dashboard';
+import { useJakartaClock } from '@/features/easyrecap/dashboard/hooks/use-jakarta-clock';
+import { greetingAt } from '@/features/easyrecap/dashboard/utils/greeting';
 import { NotificationMenu } from '@/features/notifications/components/notification-menu';
-import { NotificationsView } from '@/features/notifications/components/notifications';
-import { ImportsView } from '@/features/imports/components/imports';
-import { ReceiptsView } from '@/features/receipts/components/receipts';
-import { InvoiceDetail } from '@/features/invoices/components/invoice-detail';
+import { InvoiceDetail } from '@/features/easyrecap/invoices/components/invoice-detail';
 import {
   getInvoice,
   resolveMapping,
   syncInvoice,
-} from '@/features/invoices/services/invoices.service';
-import { type Detail, type Invoice } from '@/features/invoices/types';
-import { SettingsView } from '@/features/settings/components/settings';
+} from '@/features/easyrecap/invoices/services/invoices.service';
+import { type Detail, type Invoice } from '@/features/easyrecap/invoices/types';
 import { listBranches } from '@/features/settings/services/settings.service';
-import { UsersView } from '@/features/users/components/users';
 import { cn } from '@/lib/cn';
 import { type Branch } from '@/types';
 import type { View } from '@/types/navigation';
 import {
   PanelLeftClose,
   PanelLeftOpen,
-  CalendarDays,
   CircleAlert,
   LayoutDashboard,
-  MapPin,
   Menu,
   FileText,
   Receipt,
@@ -53,7 +40,11 @@ import {
   Users,
   ShieldCheck,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { WorkspaceContext } from './workspace-context';
+import { canAccessView, workspaceLocation, workspacePath } from '@/lib/workspace-navigation';
+import { EasyRecapDashboardFilters } from '@/features/easyrecap/components/dashboard-page';
 const views: Record<
   View,
   {
@@ -103,10 +94,13 @@ const views: Record<
     description: 'Pantau status invoice dan hal yang membutuhkan perhatian.',
   },
 };
-export function AppShell() {
+export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const location = workspaceLocation(pathname);
+  const activeModule = location?.module ?? 'recap';
+  const view = location?.view ?? 'dashboard';
   const { actor, setActor, checking, authError, setAuthError, checkAuth } = useSession();
-  const [activeModule, setActiveModule] = useState<ModuleId>('recap');
-  const [view, setView] = useState<View>('dashboard');
   const [mobile, setMobile] = useState(false);
   const { collapsed, toggle: toggleSidebar, mainRef } = useWorkspaceSidebar();
   const closeMobile = useCallback(() => setMobile(false), []);
@@ -132,13 +126,22 @@ export function AppShell() {
   });
   const admin = actor?.role === 'super_admin';
   const operate = admin || actor?.role === 'finance';
+  const allowed = !!location && !!actor && canAccessView(actor, view);
+  useEffect(() => {
+    if (actor && !allowed) router.replace(workspacePath(activeModule, 'dashboard'));
+  }, [actor, allowed, activeModule, router]);
+  useEffect(() => {
+    setMobile(false);
+    setDetail(null);
+    setError('');
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [pathname]);
   useEffect(() => {
     const expire = () => {
       setActor(null);
       setDetail(null);
       setDashboard(null);
-      setView('dashboard');
-      setActiveModule('recap');
+      router.replace(workspacePath('recap', 'dashboard'));
       setAuthError('Sesi Anda berakhir atau akses berubah. Silakan masuk kembali.');
     };
     window.addEventListener('imp:session-expired', expire);
@@ -179,8 +182,7 @@ export function AppShell() {
     }
   }
   function navigate(next: View) {
-    if (['imports', 'receipts', 'users'].includes(next)) setActiveModule('recap');
-    setView(next);
+    router.push(workspacePath(activeModule, next));
     setMobile(false);
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }
@@ -192,8 +194,7 @@ export function AppShell() {
       setActor(null);
       setDashboard(null);
       setDetail(null);
-      setView('dashboard');
-      setActiveModule('recap');
+      router.replace(workspacePath('recap', 'dashboard'));
       setMobile(false);
       setError('');
       setAuthError('');
@@ -204,7 +205,7 @@ export function AppShell() {
       setBusy(false);
     }
   }
-  async function openInvoice(i: Invoice) {
+  async function openInvoice(i: Pick<Invoice, 'id'>) {
     await run(async () => setDetail(await getInvoice(i.id)), 'Detail invoice dimuat.', false);
   }
   async function sync(id: string) {
@@ -213,7 +214,7 @@ export function AppShell() {
       if (detail?.id === id) setDetail(await getInvoice(id));
     }, 'Invoice masuk antrean. Status akan diperbarui otomatis.');
   }
-  if (checking)
+  if (checking || (actor && !allowed))
     return (
       <div className="boot min-h-screen flex flex-col items-center justify-center">
         <BrandLogo />
@@ -250,290 +251,222 @@ export function AppShell() {
           ...(admin ? [{ id: 'users' as const, icon: Users }] : []),
         ];
   return (
-    <div
-      data-sidebar-collapsed={collapsed}
-      className="app-shell flex overflow-hidden [--sidebar-width:280px] data-[sidebar-collapsed=true]:[--sidebar-width:80px] mobile:[--sidebar-width:0px] mobile:data-[sidebar-collapsed=true]:[--sidebar-width:0px]"
+    <WorkspaceContext.Provider
+      value={{
+        actor,
+        admin,
+        operate,
+        branches,
+        branch,
+        setBranch,
+        days,
+        setDays,
+        dashboard,
+        loaded,
+        error,
+        run,
+        openInvoice,
+        navigate,
+        reloadBranches: () =>
+          listBranches()
+            .then(setBranches)
+            .catch((e) => setError(e.message)),
+      }}
     >
-      {mobile && (
-        <div
-          className="sidebar-overlay hidden mobile:block mobile:fixed mobile:inset-0 mobile:z-25 mobile:bg-[#302a4355] mobile:[backdrop-filter:blur(2px)]"
-          onClick={() => setMobile(false)}
-        />
-      )}
-      <WorkspaceSidebar
-        actor={actor}
-        collapsed={collapsed}
-        mobile={mobile}
-        activeModule={activeModule}
-        view={view}
-        items={nav.map((item) => ({ ...item, label: views[item.id].label }))}
-        onNavigate={navigate}
-        onCloseMobile={closeMobile}
-        onModuleChange={(module) => {
-          setActiveModule(module);
-          setDetail(null);
-          setError('');
-          navigate('dashboard');
-        }}
-      />
       <div
-        ref={mainRef}
-        className="main-shell ml-[var(--sidebar-width)] flex h-full min-h-0 w-[calc(100%_-_var(--sidebar-width))] min-w-0 flex-col mobile:ml-0 mobile:w-full"
+        data-sidebar-collapsed={collapsed}
+        className="app-shell flex overflow-hidden [--sidebar-width:280px] data-[sidebar-collapsed=true]:[--sidebar-width:80px] mobile:[--sidebar-width:0px] mobile:data-[sidebar-collapsed=true]:[--sidebar-width:0px]"
       >
-        <header className="topbar h-18.25 shrink-0 py-0 px-8.75 border-b border-solid border-b-line bg-control flex items-center justify-between gap-5 wide:py-0 wide:px-11.25 compact:py-0 compact:px-6 mobile:h-15.25 mobile:py-0 mobile:px-4.5">
-          <div className="breadcrumb flex min-w-0 flex-1 items-center gap-3 text-[11px] whitespace-nowrap mobile:text-[10px] mobile:gap-2.25">
-            <Button
-              className="icon-button items-center justify-center mobile:min-w-8.5 mobile-menu hidden mobile:inline-flex mobile:-ml-1.25 mobile:-mr-0.75"
-              aria-label="Buka navigasi"
-              aria-controls="workspace-sidebar"
-              aria-expanded={mobile}
-              onClick={() => setMobile(true)}
-              variant="ghost"
-              size="icon"
-            >
-              <Menu size={21} data-icon="inline-start" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="mobile:hidden"
-              aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
-              aria-expanded={!collapsed}
-              aria-controls="workspace-sidebar"
-              onClick={toggleSidebar}
-            >
-              {collapsed ? (
-                <PanelLeftOpen data-icon="inline-start" />
-              ) : (
-                <PanelLeftClose data-icon="inline-start" />
-              )}
-            </Button>
-            <span>{activeModule === 'command' ? 'Command' : 'Easy Recap'}</span>
-            <span className="breadcrumb-slash text-muted-foreground mobile:hidden">/</span>
-            <strong className="min-w-0 truncate">{views[view].label}</strong>
-          </div>
-          <div className="topbar-right flex items-center gap-4.5 compact:gap-3 mobile:gap-2.25">
-            <span className="topbar-date text-[10px] text-muted-foreground tablet:hidden">
-              {new Intl.DateTimeFormat('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                timeZone: 'Asia/Jakarta',
-              }).format(now ?? new Date())}
-            </span>
-            <ThemeToggle />
-            <NotificationMenu
-              actorId={actor.id}
-              onAll={() => navigate('notifications')}
-              onInvoice={openInvoice}
-            />
-            <AccountMenu
-              actor={actor}
-              busy={busy}
-              onAccount={() => navigate('account')}
-              onSignOut={() => void logout()}
-            />
-          </div>
-        </header>
-        <main
-          ref={contentRef}
-          className="workspace-content"
-          tabIndex={0}
-          aria-label="Konten ruang kerja"
+        {mobile && (
+          <div
+            className="sidebar-overlay hidden mobile:block mobile:fixed mobile:inset-0 mobile:z-25 mobile:bg-[#302a4355] mobile:[backdrop-filter:blur(2px)]"
+            onClick={() => setMobile(false)}
+          />
+        )}
+        <WorkspaceSidebar
+          actor={actor}
+          collapsed={collapsed}
+          mobile={mobile}
+          activeModule={activeModule}
+          view={view}
+          items={nav.map((item) => ({ ...item, label: views[item.id].label }))}
+          onCloseMobile={closeMobile}
+          onModuleChange={(module) => {
+            router.push(workspacePath(module, 'dashboard'));
+            setMobile(false);
+            setDetail(null);
+            setError('');
+          }}
+        />
+        <div
+          ref={mainRef}
+          className="main-shell ml-[var(--sidebar-width)] flex h-full min-h-0 w-[calc(100%_-_var(--sidebar-width))] min-w-0 flex-col mobile:ml-0 mobile:w-full"
         >
-          {view !== 'imports' && (
-            <div
-              className={cn(
-                'page-heading flex justify-between gap-5 items-center mb-5.75 wide:mb-7 compact:items-start compact:gap-2.5 tablet:flex-wrap',
-                view === 'dashboard' && 'dashboard-heading',
-              )}
-            >
-              <div>
-                <h1>
-                  {activeModule === 'command' && view === 'dashboard'
-                    ? 'Dashboard eksekutif'
-                    : view === 'dashboard'
-                      ? `${now ? greetingAt(now) : 'Selamat datang'} - ${actor.name} 👋`
-                      : views[view].title}
-                </h1>
-                <p>
-                  {activeModule === 'command' && view === 'dashboard' ? (
-                    'Ruang untuk insight dan ringkasan kinerja bisnis Anda.'
-                  ) : view === 'dashboard' ? (
-                    <DashboardGreeting />
-                  ) : (
-                    views[view].description
-                  )}
-                </p>
-              </div>
-              {view === 'dashboard' && operate && activeModule === 'recap' && (
-                <div className="heading-actions flex flex-wrap justify-center gap-3 pt-5 mobile:w-full mobile:gap-2">
-                  <Button
-                    className="button inline-flex items-center justify-center whitespace-nowrap secondary"
-                    disabled={busy}
-                    onClick={() => navigate('imports')}
-                    variant="outline"
-                  >
-                    <FileText data-icon="inline-start" />
-                    <span>Faktur Penjualan</span>
-                  </Button>
-                  <Button
-                    className="button inline-flex items-center justify-center whitespace-nowrap primary"
-                    disabled={busy}
-                    onClick={() => navigate('receipts')}
-                    variant="default"
-                  >
-                    <Receipt data-icon="inline-start" /> Penerimaan Penjualan
-                  </Button>
+          <header className="topbar h-18.25 shrink-0 py-0 px-8.75 border-b border-solid border-b-line bg-control flex items-center justify-between gap-5 wide:py-0 wide:px-11.25 compact:py-0 compact:px-6 mobile:h-15.25 mobile:py-0 mobile:px-4.5">
+            <div className="breadcrumb flex min-w-0 flex-1 items-center gap-3 text-[11px] whitespace-nowrap mobile:text-[10px] mobile:gap-2.25">
+              <Button
+                className="icon-button items-center justify-center mobile:min-w-8.5 mobile-menu hidden mobile:inline-flex mobile:-ml-1.25 mobile:-mr-0.75"
+                aria-label="Buka navigasi"
+                aria-controls="workspace-sidebar"
+                aria-expanded={mobile}
+                onClick={() => setMobile(true)}
+                variant="ghost"
+                size="icon"
+              >
+                <Menu size={21} data-icon="inline-start" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mobile:hidden"
+                aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+                aria-expanded={!collapsed}
+                aria-controls="workspace-sidebar"
+                onClick={toggleSidebar}
+              >
+                {collapsed ? (
+                  <PanelLeftOpen data-icon="inline-start" />
+                ) : (
+                  <PanelLeftClose data-icon="inline-start" />
+                )}
+              </Button>
+              <span>{activeModule === 'command' ? 'Command' : 'Easy Recap'}</span>
+              <span className="breadcrumb-slash text-muted-foreground mobile:hidden">/</span>
+              <strong className="min-w-0 truncate">{views[view].label}</strong>
+            </div>
+            <div className="topbar-right flex items-center gap-4.5 compact:gap-3 mobile:gap-2.25">
+              <span className="topbar-date text-[10px] text-muted-foreground tablet:hidden">
+                {new Intl.DateTimeFormat('id-ID', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  timeZone: 'Asia/Jakarta',
+                }).format(now ?? new Date())}
+              </span>
+              <ThemeToggle />
+              <NotificationMenu
+                actorId={actor.id}
+                onAll={() => navigate('notifications')}
+                onInvoice={openInvoice}
+              />
+              <AccountMenu
+                actor={actor}
+                busy={busy}
+                onAccount={() => navigate('account')}
+                onSignOut={() => void logout()}
+              />
+            </div>
+          </header>
+          <main
+            ref={contentRef}
+            className="workspace-content"
+            tabIndex={0}
+            aria-label="Konten ruang kerja"
+          >
+            {view !== 'imports' && (
+              <div
+                className={cn(
+                  'page-heading flex justify-between gap-5 items-center mb-5.75 wide:mb-7 compact:items-start compact:gap-2.5 tablet:flex-wrap',
+                  view === 'dashboard' && 'dashboard-heading',
+                )}
+              >
+                <div>
+                  <h1>
+                    {activeModule === 'command' && view === 'dashboard'
+                      ? 'Dashboard eksekutif'
+                      : view === 'dashboard'
+                        ? `${now ? greetingAt(now) : 'Selamat datang'} - ${actor.name} 👋`
+                        : views[view].title}
+                  </h1>
+                  <p>
+                    {activeModule === 'command' && view === 'dashboard' ? (
+                      'Ruang untuk insight dan ringkasan kinerja bisnis Anda.'
+                    ) : view === 'dashboard' ? (
+                      <DashboardGreeting />
+                    ) : (
+                      views[view].description
+                    )}
+                  </p>
                 </div>
-              )}
-            </div>
-          )}
-          {view === 'dashboard' && activeModule === 'recap' && (
-            <div className="dashboard-toolbar">
-              <div className="filter-bar flex items-center gap-2.25 mb-5.5 mobile:gap-2 mobile:flex-wrap mobile:mb-4.5">
-                <SelectField
-                  variant="pill"
-                  icon={<MapPin />}
-                  className="w-auto min-w-40 mobile:flex-1 mobile:basis-36"
-                  aria-label="Filter cabang"
-                  value={branch}
-                  onValueChange={(e) => {
-                    setBranch(e);
-                  }}
-                >
-                  <SelectFieldOption value="">Semua cabang</SelectFieldOption>
-                  {branches.map((b) => (
-                    <SelectFieldOption key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectFieldOption>
-                  ))}
-                </SelectField>
-                <SelectField
-                  variant="pill"
-                  icon={<CalendarDays />}
-                  className="w-auto min-w-40 mobile:flex-1 mobile:basis-36"
-                  aria-label="Filter periode"
-                  value={days}
-                  onValueChange={(e) => {
-                    setDays(e);
-                  }}
-                >
-                  <SelectFieldOption value="7">7 hari terakhir</SelectFieldOption>
-                  <SelectFieldOption value="30">30 hari terakhir</SelectFieldOption>
-                  <SelectFieldOption value="90">90 hari terakhir</SelectFieldOption>
-                  <SelectFieldOption value="365">1 tahun terakhir</SelectFieldOption>
-                </SelectField>
+                {view === 'dashboard' && operate && activeModule === 'recap' && (
+                  <div className="heading-actions flex flex-wrap justify-center gap-3 pt-5 mobile:w-full mobile:gap-2">
+                    <Button
+                      className="button inline-flex items-center justify-center whitespace-nowrap secondary"
+                      disabled={busy}
+                      onClick={() => navigate('imports')}
+                      variant="outline"
+                    >
+                      <FileText data-icon="inline-start" />
+                      <span>Faktur Penjualan</span>
+                    </Button>
+                    <Button
+                      className="button inline-flex items-center justify-center whitespace-nowrap primary"
+                      disabled={busy}
+                      onClick={() => navigate('receipts')}
+                      variant="default"
+                    >
+                      <Receipt data-icon="inline-start" /> Penerimaan Penjualan
+                    </Button>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-          {error && (
-            <Alert
-              className="alert flex gap-2.5 items-start py-3.5 px-4 mb-5 warning"
-              role="alert"
-              variant="destructive"
-            >
-              <AlertDescription>
-                <CircleAlert size={19} />
-                <p>{error}</p>
-                <Button
-                  className="inline-flex items-center whitespace-nowrap"
-                  onClick={load}
-                  variant="ghost"
-                >
-                  Coba lagi
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-          {view === 'dashboard' && activeModule === 'command' && (
-            <CommandComingSoon
-              onDashboard={() => {
-                setActiveModule('recap');
-                navigate('dashboard');
-              }}
-            />
-          )}
-          {view === 'dashboard' && activeModule === 'recap' && !loaded && !error && <Loading />}
-          {loaded && view === 'dashboard' && activeModule === 'recap' && dashboard && (
-            <Overview
-              data={dashboard}
-              onInvoice={openInvoice}
-              onNavigate={navigate}
-              canUpload={operate}
-            />
-          )}
-          {view === 'imports' && operate && (
-            <ImportsView
-              branches={branches}
-              onConfigure={admin ? () => navigate('settings') : undefined}
-            />
-          )}
-          {view === 'receipts' && operate && (
-            <ReceiptsView
-              canConfigureAccounts={admin}
-              branches={branches}
-              onConfigure={admin ? () => navigate('settings') : undefined}
-              onInvoice={(id) =>
-                void run(
-                  async () => setDetail(await getInvoice(id)),
-                  'Detail invoice dimuat.',
-                  false,
-                )
-              }
-            />
-          )}
-          {view === 'settings' && admin && (
-            <SettingsView
-              branches={branches}
-              run={run}
-              reload={() =>
-                listBranches()
-                  .then(setBranches)
-                  .catch((e) => setError(e.message))
-              }
-            />
-          )}
-          {view === 'users' && admin && <UsersView actor={actor} run={run} />}
-          {view === 'audit' && admin && <AuditView />}
-          {view === 'account' && <PasswordForm run={run} />}
-          {view === 'notifications' && (
-            <NotificationsView actorId={actor.id} onInvoice={openInvoice} />
-          )}
-          <footer className="page-footer pt-6 pr-0 pb-5.5 pl-0 border-t border-solid border-t-border flex items-center justify-between gap-3.75 mt-7 text-[8px] text-muted-foreground mobile:mt-6 mobile:text-[7px] mobile:gap-2">
-            <div className="flex items-center gap-3">
-              <BrandLogo className="w-16" />
-            </div>
-            <span>
-              <ShieldCheck size={13} /> Secured Platform
-            </span>
-          </footer>
-        </main>
+            )}
+            {view === 'dashboard' && activeModule === 'recap' && <EasyRecapDashboardFilters />}
+            {error && (
+              <Alert
+                className="alert flex gap-2.5 items-start py-3.5 px-4 mb-5 warning"
+                role="alert"
+                variant="destructive"
+              >
+                <AlertDescription>
+                  <CircleAlert size={19} />
+                  <p>{error}</p>
+                  <Button
+                    className="inline-flex items-center whitespace-nowrap"
+                    onClick={load}
+                    variant="ghost"
+                  >
+                    Coba lagi
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            {children}
+            <footer className="page-footer pt-6 pr-0 pb-5.5 pl-0 border-t border-solid border-t-border flex items-center justify-between gap-3.75 mt-7 text-[8px] text-muted-foreground mobile:mt-6 mobile:text-[7px] mobile:gap-2">
+              <div className="flex items-center gap-3">
+                <BrandLogo className="w-16" />
+              </div>
+              <span>
+                <ShieldCheck size={13} /> Secured Platform
+              </span>
+            </footer>
+          </main>
+        </div>
+        {detail && (
+          <InvoiceDetail
+            invoice={detail}
+            close={closeDetail}
+            operate={operate}
+            admin={admin}
+            busy={busy}
+            sync={sync}
+            fix={(id) =>
+              run(async () => {
+                await resolveMapping(id);
+                setDetail(await getInvoice(id));
+              }, 'Mapping simulasi diperbaiki. Invoice siap di-retry.')
+            }
+          />
+        )}
+        {toast && (
+          <Toast
+            message={toast.text}
+            error={toast.error}
+            duration={6500}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
-      {detail && (
-        <InvoiceDetail
-          invoice={detail}
-          close={closeDetail}
-          operate={operate}
-          admin={admin}
-          busy={busy}
-          sync={sync}
-          fix={(id) =>
-            run(async () => {
-              await resolveMapping(id);
-              setDetail(await getInvoice(id));
-            }, 'Mapping simulasi diperbaiki. Invoice siap di-retry.')
-          }
-        />
-      )}
-      {toast && (
-        <Toast
-          message={toast.text}
-          error={toast.error}
-          duration={6500}
-          onClose={() => setToast(null)}
-        />
-      )}
-    </div>
+    </WorkspaceContext.Provider>
   );
 }

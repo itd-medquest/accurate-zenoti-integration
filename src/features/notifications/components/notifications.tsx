@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/empty';
 import { ImportPagination } from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Invoice } from '@/features/invoices/types';
+import type { Invoice } from '@/features/easyrecap/invoices/types';
 import { dateTime } from '@/lib/format';
 import { useNotifications } from '../hooks/use-notifications';
 import { notificationStatus } from '../utils/notification-status';
